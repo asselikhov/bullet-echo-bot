@@ -366,8 +366,8 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, language === 'RU' ? `✅ Параметр "${parameter}" обновлён!` : `✅ Parameter "${parameter}" updated!`);
       delete editingState[userId];
 
-      // Обновляем статистику героя
-      await heroesHandler(bot, msg, { data: `heroes_${classId}` });
+      // Вызываем heroesHandler напрямую для обновления отображения
+      await heroesHandler(bot, msg, classId); // Передаём только classId как параметр
     } catch (error) {
       console.error(`Error updating hero ${parameter}:`, error.stack);
       bot.sendMessage(chatId, language === 'RU' ? '❌ Произошла ошибка при обновлении.' : '❌ An error occurred while updating.');

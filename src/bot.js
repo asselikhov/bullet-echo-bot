@@ -408,7 +408,7 @@ bot.on('message', async (msg) => {
 
     const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
     const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-    const menuCommands = user.language === 'RU' ? menuCommandsRU : menuCommandsEN;
+    const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
 
     if (msg.text && msg.text.startsWith('/')) {
       console.log(`Command detected for registered user: ${msg.text}, ignoring here (handled by specific handlers)`);
@@ -452,7 +452,7 @@ bot.on('message', async (msg) => {
       console.log(`User ${msg.from.id} registration completed, processing menu commands`);
       const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
       const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-      const menuCommands = user.language === 'RU' ? menuCommandsRU : menuCommandsEN;
+      const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
 
       if (menuCommands.includes(msg.text)) {
         console.log(`Menu command detected in private chat: ${msg.text}`);

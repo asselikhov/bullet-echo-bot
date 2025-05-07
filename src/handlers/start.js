@@ -32,7 +32,7 @@ module.exports = async (bot, msg) => {
       bot.sendMessage(chatId, user.language === 'RU' ? 'Добро пожаловать!' : 'Welcome!', {
         reply_markup: {
           keyboard: [
-            [user.language === 'RU' ? 'Личный кабинет' : 'Profile'],
+            [user.language === 'RU' ? 'ЛК' : 'Profile'],
             [user.language === 'RU' ? 'Настройки' : 'Settings'],
             [user.language === 'RU' ? 'Герои' : 'Heroes'],
           ],

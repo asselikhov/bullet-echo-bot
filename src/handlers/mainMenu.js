@@ -4,12 +4,14 @@ const heroTranslations = require('../constants/heroes');
 module.exports = async (bot, msg, query) => {
   const chatId = msg.chat.id;
   const data = query ? query.data : null;
-  const user = await User.findOne({ telegramId: chatId.toString() });
+  const user = await User.findOne({ telegramId: msg.from.id.toString() });
 
   if (!user) {
-    bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
     return;
   }
+
+  const language = user.language || 'RU';
 
   try {
     if (data === 'menu_profile') {
@@ -19,7 +21,7 @@ module.exports = async (bot, msg, query) => {
         valorPath: user.valorPath,
         telegramUsername: user.telegramUsername
       }); // Отладочный лог с telegramUsername
-      const fields = user.language === 'RU' ?
+      const fields = language === 'RU' ?
           {
             'Telegram': user.telegramUsername || `@${user.telegramId}`,
             'Никнейм': user.nickname,
@@ -47,40 +49,73 @@ module.exports = async (bot, msg, query) => {
             'City': user.city
           };
 
-      let profileText = user.language === 'RU' ? '📋 Личный кабинет\n➖➖➖➖➖➖➖➖➖➖➖\n' : '📋 Profile\n━━━━━━━━━━━━━━━\n';
+      let profileText = language === 'RU' ? '📋 Личный кабинет\n➖➖➖➖➖➖➖➖➖➖➖\n' : '📋 Profile\n━━━━━━━━━━━━━━━\n';
       let hasFields = false;
       for (const [key, value] of Object.entries(fields)) {
         if (value !== undefined && value !== null) {
-          profileText += `${key}: ${value || (user.language === 'RU' ? 'Не указано' : 'Not set')}\n`;
+          profileText += `${key}: ${value || (language === 'RU' ? 'Не указано' : 'Not set')}\n`;
           hasFields = true;
         }
       }
 
       if (!hasFields) {
-        profileText = user.language === 'RU' ? '⚠️ Профиль пуст. Завершите регистрацию.' : '⚠️ Profile is empty. Complete registration.';
+        profileText = language === 'RU' ? '⚠️ Профиль пуст. Завершите регистрацию.' : '⚠️ Profile is empty. Complete registration.';
       }
 
       bot.sendMessage(chatId, profileText, {
         reply_markup: {
           inline_keyboard: [
-            [{ text: user.language === 'RU' ? '✏️ Редактировать' : '✏️ Edit', callback_data: 'profile_edit' }],
+            [{ text: language === 'RU' ? '✏️ Редактировать' : '✏️ Edit', callback_data: 'profile_edit' }],
           ],
         },
       });
     } else if (data === 'menu_heroes') {
       const classes = Object.keys(heroTranslations).map(classId => ({
         id: classId,
-        name: heroTranslations[classId].classNames[user.language],
+        name: heroTranslations[classId].classNames[language],
       }));
 
-      bot.sendMessage(chatId, user.language === 'RU' ? 'Выберите класс героев:' : 'Select hero class:', {
+      bot.sendMessage(chatId, language === 'RU' ? 'Выберите класс героев:' : 'Select hero class:', {
         reply_markup: {
           inline_keyboard: classes.map(cls => [{ text: cls.name, callback_data: `heroes_class_${cls.id}` }]),
         },
       });
+    } else {
+      // Отображаем главное меню с новым порядком кнопок
+      const menuText = language === 'RU'
+          ? '🎮 Главное меню'
+          : '🎮 Main Menu';
+
+      const keyboard = language === 'RU' ? [
+        ['ЛК', 'Рейтинг', 'Настройки'], // 1-я строка
+        ['Герои', 'Синдикаты', 'Поиск']  // 2-я строка
+      ] : [
+        ['Profile', 'Rating', 'Settings'], // 1-я строка
+        ['Heroes', 'Syndicates', 'Search']  // 2-я строка
+      ];
+
+      const replyMarkup = {
+        reply_markup: {
+          keyboard: keyboard,
+          resize_keyboard: true,
+          one_time_keyboard: false
+        }
+      };
+
+      // Если это callback-запрос, редактируем сообщение
+      if (query && query.message) {
+        bot.editMessageText(menuText, {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          reply_markup: replyMarkup.reply_markup
+        });
+      } else {
+        // Иначе отправляем новое сообщение
+        bot.sendMessage(chatId, menuText, replyMarkup);
+      }
     }
   } catch (error) {
-    console.error('Error in mainMenu handler:', error);
-    bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
+    console.error('Error in mainMenu handler:', error.stack);
+    bot.sendMessage(chatId, language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
   }
 };

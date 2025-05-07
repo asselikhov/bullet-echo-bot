@@ -469,6 +469,9 @@ bot.on('message', async (msg) => {
         } else if (msg.text === (user.language === 'RU' ? 'Поиск' : 'Search')) {
           bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
         }
+      } else if (!msg.text || msg.text.trim() === '') {
+        // Показываем полное меню при пустом или первом сообщении
+        await mainMenuHandler(bot, msg);
       } else {
         console.log(`Ignoring non-menu message in private chat from registered user: ${msg.text}`);
         return;

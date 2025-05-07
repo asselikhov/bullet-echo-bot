@@ -74,9 +74,8 @@ module.exports = async (bot, msg) => {
       bot.sendMessage(chatId, user.language === 'RU' ? 'Поле обновлено!' : 'Field updated!', {
         reply_markup: {
           keyboard: [
-            [user.language === 'RU' ? 'ЛК' : 'Profile'],
-            [user.language === 'RU' ? 'Настройки' : 'Settings'],
-            [user.language === 'RU' ? 'Герои' : 'Heroes'],
+            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
+            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
           ],
           resize_keyboard: true,
         },
@@ -124,9 +123,8 @@ module.exports = async (bot, msg) => {
       bot.sendMessage(chatId, user.language === 'RU' ? 'Регистрация завершена!' : 'Registration completed!', {
         reply_markup: {
           keyboard: [
-            [user.language === 'RU' ? 'ЛК' : 'Profile'],
-            [user.language === 'RU' ? 'Настройки' : 'Settings'],
-            [user.language === 'RU' ? 'Герои' : 'Heroes'],
+            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
+            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
           ],
           resize_keyboard: true,
         },

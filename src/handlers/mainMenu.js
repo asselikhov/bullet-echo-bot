@@ -66,6 +66,7 @@ module.exports = async (bot, msg, query) => {
         reply_markup: {
           inline_keyboard: [
             [{ text: language === 'RU' ? '✏️ Редактировать' : '✏️ Edit', callback_data: 'profile_edit' }],
+            [{ text: language === 'RU' ? '⬅️ Назад' : '⬅️ Back', callback_data: 'menu_back' }],
           ],
         },
       });
@@ -77,21 +78,47 @@ module.exports = async (bot, msg, query) => {
 
       bot.sendMessage(chatId, language === 'RU' ? 'Выберите класс героев:' : 'Select hero class:', {
         reply_markup: {
-          inline_keyboard: classes.map(cls => [{ text: cls.name, callback_data: `heroes_class_${cls.id}` }]),
+          inline_keyboard: [
+            ...classes.map(cls => [{ text: cls.name, callback_data: `heroes_class_${cls.id}` }]),
+            [{ text: language === 'RU' ? '⬅️ Назад' : '⬅️ Back', callback_data: 'menu_back' }],
+          ],
         },
       });
-    } else {
-      // Отображаем главное меню с новым порядком кнопок
-      const menuText = language === 'RU'
-          ? '🎮 Главное меню'
-          : '🎮 Main Menu';
-
+    } else if (data === 'menu_back') {
+      // Отображаем главное меню с полным набором кнопок
+      const menuText = language === 'RU' ? '🎮 Главное меню' : '🎮 Main Menu';
+      console.log(`Rendering full main menu for user ${user.telegramId}`); // Отладочный лог
       const keyboard = language === 'RU' ? [
-        ['ЛК', 'Рейтинг', 'Настройки'], // 1-я строка
-        ['Герои', 'Синдикаты', 'Поиск']  // 2-я строка
+        ['ЛК', 'Рейтинг', 'Настройки'],
+        ['Герои', 'Синдикаты', 'Поиск']
       ] : [
-        ['Profile', 'Rating', 'Settings'], // 1-я строка
-        ['Heroes', 'Syndicates', 'Search']  // 2-я строка
+        ['Profile', 'Rating', 'Settings'],
+        ['Heroes', 'Syndicates', 'Search']
+      ];
+
+      const replyMarkup = {
+        reply_markup: {
+          keyboard: keyboard,
+          resize_keyboard: true,
+          one_time_keyboard: false
+        }
+      };
+
+      bot.editMessageText(menuText, {
+        chat_id: chatId,
+        message_id: query.message.message_id,
+        reply_markup: replyMarkup.reply_markup
+      });
+    } else {
+      // Отображаем главное меню с полным набором кнопок
+      const menuText = language === 'RU' ? '🎮 Главное меню' : '🎮 Main Menu';
+      console.log(`Rendering full main menu for user ${user.telegramId}`); // Отладочный лог
+      const keyboard = language === 'RU' ? [
+        ['ЛК', 'Рейтинг', 'Настройки'],
+        ['Герои', 'Синдикаты', 'Поиск']
+      ] : [
+        ['Profile', 'Rating', 'Settings'],
+        ['Heroes', 'Syndicates', 'Search']
       ];
 
       const replyMarkup = {

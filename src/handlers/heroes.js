@@ -136,6 +136,7 @@ module.exports = async (bot, msg, query) => {
         isPrimary: false
       });
       bot.sendMessage(chatId, user.language === 'RU' ? 'Герой добавлен!' : 'Hero added!');
+      await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
     } else if (data && data.startsWith('heroes_add_')) {
       const classId = data.split('_')[2];
       console.log(`Processing heroes_add with classId: ${classId}`);
@@ -216,6 +217,9 @@ module.exports = async (bot, msg, query) => {
               { text: user.language === 'RU' ? 'Победы (%)' : 'Win Rate (%)', callback_data: `edit_win_${classId}_${heroId}` },
               { text: user.language === 'RU' ? 'Воскр.' : 'Rev.', callback_data: `edit_revived_${classId}_${heroId}` },
             ],
+            [
+              { text: user.language === 'RU' ? '⬅️ Назад' : '⬅️ Back', callback_data: `heroes_class_${classId}` },
+            ],
           ],
         },
       });
@@ -281,6 +285,7 @@ module.exports = async (bot, msg, query) => {
             `Updated: ${updatedAt}`;
 
         bot.sendMessage(chatId, responseText, { parse_mode: 'HTML' });
+        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
       } else {
         user.registrationStep = `editing_${field}_${classId}_${heroId}`;
         await user.save();

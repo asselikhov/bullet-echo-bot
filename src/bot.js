@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const connectDB = require('./db');
 const startHandler = require('./handlers/start');
@@ -11,7 +12,8 @@ const User = require('./models/User');
 const Hero = require('./models/Hero');
 const heroTranslations = require('./constants/heroes');
 
-const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
+const app = express();
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN);
 
 // Функция форматирования даты и времени
 const formatDateTime = (date, language) => {
@@ -55,6 +57,15 @@ connectDB().then(async () => {
   }
 });
 
+app.use(express.json());
+
+// Обработка входящих обновлений от Telegram
+app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// Обработка команды /start
 bot.onText(/\/start/, (msg) => startHandler(bot, msg));
 
 // Обработчик команды /info
@@ -150,8 +161,8 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
     let heroesText = '';
     if (Object.keys(bestHeroesByClass).length > 0) {
       heroesText += language === 'RU'
-          ? `⭐️ Основы в каждом классе:\n➖➖➖➖➖➖➖➖➖➖➖\n`
-          : `⭐️ Primary in Each Class:\n➖➖➖➖➖➖➖➖➖➖➖\n`;
+          ? `⭐️ Основы в каждом классе:\n━━━━━━━━━━━━━━━\n`
+          : `⭐️ Primary in Each Class:\n━━━━━━━━━━━━━━━\n`;
 
       for (const [classId, hero] of Object.entries(bestHeroesByClass)) {
         const heroName = language === 'RU' ? hero.nameRU : hero.nameEN;
@@ -176,7 +187,7 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
         { 'Обновлено': targetUser.updatedAt ? formatDateTime(new Date(targetUser.updatedAt), language) : 'Неизвестно' } :
         { 'Updated': targetUser.updatedAt ? formatDateTime(new Date(targetUser.updatedAt), language) : 'Unknown' };
 
-    let profileText = language === 'RU' ? `📋 Профиль пользователя\n➖➖➖➖➖➖➖➖➖➖➖\n` : `📋 User Profile\n➖➖➖➖➖➖➖➖➖➖➖\n`;
+    let profileText = language === 'RU' ? `📋 Профиль пользователя\n➖➖➖➖➖➖➖➖➖➖➖\n` : `📋 User Profile\n━━━━━━━━━━━━━━━\n`;
     let hasFields = false;
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined && value !== null) {
@@ -290,11 +301,10 @@ bot.onText(/\/hero\s+(.+)\s+(.+)/, async (msg, match) => {
     heroText += language === 'RU'
         ? `Битвы/Убито/Воскр.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n`
         : `Battles/Killed/Rev.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n`;
-    heroText += '\n';
-    const updatedAt = hero.updatedAt ? formatDateTime(new Date(hero.updatedAt), language) : formatDateTime(new Date(), language);
+    const updatedAt = formatDateTime(new Date(hero.updatedAt), language);
     heroText += language === 'RU'
-        ? `Обновлено: ${updatedAt}`
-        : `Updated: ${updatedAt}`;
+        ? `\nОбновлено: ${updatedAt}`
+        : `\nUpdated: ${updatedAt}`;
 
     bot.sendMessage(chatId, heroText);
   } catch (error) {
@@ -416,17 +426,11 @@ bot.on('callback_query', async (query) => {
       await heroesHandler(bot, msg, query);
     } else if (data.startsWith('set_primary_')) {
       console.log(`Processing set_primary callback: data="${data}"`);
-      // Очищаем data от пробелов и невидимых символов
       const cleanedData = data.trim().replace(/\s+/g, '');
-      // Логируем побайтовое содержимое cleanedData
-      const byteString = Buffer.from(cleanedData, 'utf8').toString('hex');
-      console.log(`Cleaned callback data (hex): "${byteString}"`);
       const parts = cleanedData.split('_');
-      console.log(`Callback data: "${cleanedData}", parts: ${JSON.stringify(parts)}, parts.length: ${parts.length}`);
 
-      // Проверяем, что получили ровно 5 частей и первые две — set и primary
       if (parts.length !== 5 || parts[0] !== 'set' || parts[1] !== 'primary') {
-        console.error(`Invalid callback data format: "${cleanedData}", parts: ${JSON.stringify(parts)}, hex: "${byteString}"`);
+        console.error(`Invalid callback data format: "${cleanedData}"`);
         bot.sendMessage(msg.chat.id, '❌ Неверный формат данных / Invalid data format.');
         bot.answerCallbackQuery(query.id);
         return;
@@ -436,7 +440,6 @@ bot.on('callback_query', async (query) => {
       const classId = parts[3];
       const heroId = parts[4];
 
-      // Проверка, что userId является числом
       if (!/^\d+$/.test(userId)) {
         console.error(`Invalid userId format: "${userId}"`);
         bot.sendMessage(msg.chat.id, '❌ Неверный идентификатор пользователя / Invalid user ID.');
@@ -444,7 +447,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Проверка авторизации
       if (userId !== msg.chat.id.toString()) {
         console.log(`Unauthorized attempt: userId=${userId}, chatId=${msg.chat.id}`);
         bot.sendMessage(msg.chat.id, '❌ У вас нет прав для этого действия / You are not authorized for this action.');
@@ -452,7 +454,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Проверка classId
       if (!heroTranslations[classId]) {
         console.log(`Invalid classId: "${classId}"`);
         bot.sendMessage(msg.chat.id, '❌ Неверный класс героя / Invalid hero class.');
@@ -460,7 +461,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Проверка heroId
       if (!heroTranslations[classId].heroes[heroId]) {
         console.log(`Invalid heroId: "${heroId}" for class "${classId}"`);
         bot.sendMessage(msg.chat.id, '❌ Неверный герой / Invalid hero.');
@@ -468,7 +468,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Проверка существования героя
       const hero = await Hero.findOne({ userId, classId, heroId });
       if (!hero) {
         console.log(`Hero not found: userId=${userId}, classId=${classId}, heroId=${heroId}`);
@@ -477,7 +476,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Проверка существования пользователя
       const user = await User.findOne({ telegramId: userId });
       if (!user) {
         console.log(`User not found: telegramId=${userId}`);
@@ -486,7 +484,6 @@ bot.on('callback_query', async (query) => {
         return;
       }
 
-      // Обновление героя
       await Hero.findOneAndUpdate(
           { userId, classId, heroId },
           { isPrimary: true },
@@ -512,4 +509,15 @@ bot.on('polling_error', (error) => {
   console.error('Polling error:', error.stack);
 });
 
-console.log('Bot is running...');
+// Запуск сервера на порту, указанном Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Webhook server is running on port ${PORT}`);
+  // Установка webhook после старта сервера
+  const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot${process.env.TELEGRAM_TOKEN}`;
+  bot.setWebHook(webhookUrl)
+      .then(() => console.log(`Webhook set to: ${webhookUrl}`))
+      .catch((error) => console.error('Error setting webhook:', error));
+});
+
+console.log('Bot is initializing...');

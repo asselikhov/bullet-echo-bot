@@ -418,95 +418,109 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
   const data = query.data;
   const msg = query.message;
+  const chatId = msg.chat.id;
+  const userId = query.from.id.toString();
 
-  console.log(`Processing callback: ${data}`);
+  console.log(`Received callback_query: data="${data}", chatId=${chatId}, userId=${userId}, messageId=${msg.message_id}`);
+
   try {
     if (data.startsWith('menu_')) {
+      console.log(`Processing menu callback: ${data}`);
       await mainMenuHandler(bot, msg, query);
     } else if (data.startsWith('profile_')) {
+      console.log(`Processing profile callback: ${data}`);
       await profileHandler(bot, msg, query);
     } else if (data.startsWith('settings_') || data === 'language_RU' || data === 'language_EN') {
+      console.log(`Processing settings callback: ${data}`);
       await settingsHandler(bot, msg, query);
     } else if (data.startsWith('heroes_')) {
+      console.log(`Processing heroes callback: ${data}`);
       await heroesHandler(bot, msg, query);
     } else if (data.startsWith('set_primary_')) {
       console.log(`Processing set_primary callback: data="${data}"`);
       const cleanedData = data.trim().replace(/\s+/g, '');
       const parts = cleanedData.split('_');
 
+      console.log(`Cleaned data: "${cleanedData}", parts: ${JSON.stringify(parts)}`);
+
       if (parts.length !== 5 || parts[0] !== 'set' || parts[1] !== 'primary') {
         console.error(`Invalid callback data format: "${cleanedData}"`);
-        bot.sendMessage(msg.chat.id, '❌ Неверный формат данных / Invalid data format.');
-        bot.answerCallbackQuery(query.id);
+        bot.sendMessage(chatId, '🇷🇺 Неверный формат данных. Попробуйте снова.\n🇬🇧 Invalid data format. Please try again.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка формата', show_alert: true });
         return;
       }
 
-      const userId = parts[2];
+      const callbackUserId = parts[2];
       const classId = parts[3];
       const heroId = parts[4];
 
-      if (!/^\d+$/.test(userId)) {
-        console.error(`Invalid userId format: "${userId}"`);
-        bot.sendMessage(msg.chat.id, '❌ Неверный идентификатор пользователя / Invalid user ID.');
-        bot.answerCallbackQuery(query.id);
+      if (!/^\d+$/.test(callbackUserId)) {
+        console.error(`Invalid userId format: "${callbackUserId}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный идентификатор пользователя.\n🇬🇧 Invalid user ID.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка ID', show_alert: true });
         return;
       }
 
-      if (userId !== msg.chat.id.toString()) {
-        console.log(`Unauthorized attempt: userId=${userId}, chatId=${msg.chat.id}`);
-        bot.sendMessage(msg.chat.id, '❌ У вас нет прав для этого действия / You are not authorized for this action.');
-        bot.answerCallbackQuery(query.id);
+      if (callbackUserId !== userId) {
+        console.log(`Unauthorized attempt: callbackUserId=${callbackUserId}, userId=${userId}`);
+        bot.sendMessage(chatId, '🇷🇺 У вас нет прав для этого действия.\n🇬🇧 You are not authorized for this action.');
+        bot.answerCallbackQuery(query.id, { text: 'Нет прав', show_alert: true });
         return;
       }
 
       if (!heroTranslations[classId]) {
         console.log(`Invalid classId: "${classId}"`);
-        bot.sendMessage(msg.chat.id, '❌ Неверный класс героя / Invalid hero class.');
-        bot.answerCallbackQuery(query.id);
+        bot.sendMessage(chatId, '🇷🇺 Неверный класс героя.\n🇬🇧 Invalid hero class.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка класса', show_alert: true });
         return;
       }
 
       if (!heroTranslations[classId].heroes[heroId]) {
         console.log(`Invalid heroId: "${heroId}" for class "${classId}"`);
-        bot.sendMessage(msg.chat.id, '❌ Неверный герой / Invalid hero.');
-        bot.answerCallbackQuery(query.id);
+        bot.sendMessage(chatId, '🇷🇺 Неверный герой.\n🇬🇧 Invalid hero.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка героя', show_alert: true });
         return;
       }
 
-      const hero = await Hero.findOne({ userId, classId, heroId });
+      const hero = await Hero.findOne({ userId: callbackUserId, classId, heroId });
       if (!hero) {
-        console.log(`Hero not found: userId=${userId}, classId=${classId}, heroId=${heroId}`);
-        bot.sendMessage(msg.chat.id, '❌ Герой не найден / Hero not found.');
-        bot.answerCallbackQuery(query.id);
+        console.log(`Hero not found: userId=${callbackUserId}, classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, '🇷🇺 Герой не найден.\n🇬🇧 Hero not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
         return;
       }
 
-      const user = await User.findOne({ telegramId: userId });
+      const user = await User.findOne({ telegramId: callbackUserId });
       if (!user) {
-        console.log(`User not found: telegramId=${userId}`);
-        bot.sendMessage(msg.chat.id, '❌ Пользователь не найден / User not found.');
-        bot.answerCallbackQuery(query.id);
+        console.log(`User not found: telegramId=${callbackUserId}`);
+        bot.sendMessage(chatId, '🇷🇺 Пользователь не найден.\n🇬🇧 User not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Пользователь не найден', show_alert: true });
         return;
       }
 
       await Hero.findOneAndUpdate(
-          { userId, classId, heroId },
+          { userId: callbackUserId, classId, heroId },
           { isPrimary: true },
           { new: true }
       );
       await Hero.updateMany(
-          { userId, classId, heroId: { $ne: heroId } },
+          { userId: callbackUserId, classId, heroId: { $ne: heroId } },
           { isPrimary: false }
       );
 
       const language = user.language || 'RU';
-      bot.sendMessage(userId, language === 'RU' ? 'Основной герой установлен!' : 'Primary hero set!');
+      bot.sendMessage(chatId, language === 'RU' ? '✅ Основной герой установлен!' : '✅ Primary hero set!');
       await heroesHandler(bot, msg, query);
+    } else {
+      console.log(`Unknown callback data: ${data}`);
+      bot.sendMessage(chatId, '🇷🇺 Неизвестная команда.\n🇬🇧 Unknown command.');
+      bot.answerCallbackQuery(query.id, { text: 'Неизвестная команда', show_alert: true });
     }
     bot.answerCallbackQuery(query.id);
   } catch (error) {
     console.error('Callback query error:', error.stack);
-    bot.sendMessage(msg.chat.id, '❌ Произошла ошибка / An error occurred.');
+    bot.sendMessage(chatId, '🇷🇺 Произошла ошибка.\n🇬🇧 An error occurred.');
+    bot.answerCallbackQuery(query.id, { text: 'Ошибка обработки', show_alert: true });
   }
 });
 

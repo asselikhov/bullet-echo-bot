@@ -59,6 +59,11 @@ connectDB().then(async () => {
 
 app.use(express.json());
 
+// Эндпоинт для проверки состояния
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
+
 // Обработка входящих обновлений от Telegram
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
@@ -513,7 +518,6 @@ bot.on('polling_error', (error) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Webhook server is running on port ${PORT}`);
-  // Установка webhook после старта сервера
   const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot${process.env.TELEGRAM_TOKEN}`;
   bot.setWebHook(webhookUrl)
       .then(() => console.log(`Webhook set to: ${webhookUrl}`))

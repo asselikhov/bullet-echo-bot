@@ -138,8 +138,8 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
     }
 
     const language = requester.language || 'RU';
-    const fields = language === 'RU' ?
-        {
+    const fields = language === 'RU'
+        ? {
           'Telegram': targetUser.telegramUsername || `@${targetUser.telegramId}`,
           'Никнейм': targetUser.nickname,
           'ID игрока': targetUser.userId,
@@ -151,8 +151,8 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
           'Пол': targetUser.gender,
           'Страна': targetUser.country,
           'Город': targetUser.city
-        } :
-        {
+        }
+        : {
           'Telegram': targetUser.telegramUsername || `@${targetUser.telegramId}`,
           'Nickname': targetUser.nickname,
           'User ID': targetUser.userId,
@@ -169,31 +169,27 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
     let heroesText = '';
     if (Object.keys(bestHeroesByClass).length > 0) {
       heroesText += language === 'RU'
-          ? `⭐️ Основы в каждом классе:\n━━━━━━━━━━━━━━━\n`
-          : `⭐️ Primary in Each Class:\n━━━━━━━━━━━━━━━\n`;
+          ? `⭐️ Основы в каждом классе:\n➖➖➖➖➖➖➖➖➖➖➖\n`
+          : `⭐️ Primary in Each Class:\n➖➖➖➖➖➖➖➖➖➖➖\n`;
 
       for (const [classId, hero] of Object.entries(bestHeroesByClass)) {
         const heroName = language === 'RU' ? hero.nameRU : hero.nameEN;
         const winPercentageFormatted = language === 'RU'
             ? hero.winPercentage.toFixed(2).replace('.', ',')
             : hero.winPercentage.toFixed(2);
+        const updatedAt = formatDateTime(new Date(hero.updatedAt), language);
         heroesText += language === 'RU'
             ? `${heroName} ур. ${hero.level}, ✊ ${hero.strength}, ⚔️ ${winPercentageFormatted}%\n`
             : `${heroName} lvl. ${hero.level}, ✊ ${hero.strength}, ⚔️ ${winPercentageFormatted}%\n`;
         heroesText += language === 'RU'
             ? `Битвы/Убито/Воскр.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n`
             : `Battles/Killed/Rev.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n`;
-        const updatedAt = formatDateTime(new Date(hero.updatedAt), language);
         heroesText += language === 'RU'
             ? `Обновлено: ${updatedAt}\n\n`
             : `Updated: ${updatedAt}\n\n`;
       }
       heroesText = heroesText.trim();
     }
-
-    const updatedField = language === 'RU' ?
-        { 'Обновлено': targetUser.updatedAt ? formatDateTime(new Date(targetUser.updatedAt), language) : 'Неизвестно' } :
-        { 'Updated': targetUser.updatedAt ? formatDateTime(new Date(targetUser.updatedAt), language) : 'Unknown' };
 
     let profileText = language === 'RU' ? `📋 Профиль пользователя\n➖➖➖➖➖➖➖➖➖➖➖\n` : `📋 User Profile\n━━━━━━━━━━━━━━━\n`;
     let hasFields = false;
@@ -209,7 +205,7 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
     }
 
     if (hasFields || heroesText) {
-      profileText += `\n${Object.keys(updatedField)[0]}: ${Object.values(updatedField)[0]}\n`;
+      // Убрана лишняя строка с общей датой обновления
     } else {
       profileText = language === 'RU' ? '⚠️ Профиль пуст.' : '⚠️ Profile is empty.';
     }
@@ -302,7 +298,7 @@ bot.onText(/\/hero\s+(.+)\s+(.+)/, async (msg, match) => {
 
     let heroText = language === 'RU'
         ? `🦸 Статистика героя\n➖➖➖➖➖➖➖➖➖➖➖\n`
-        : `🦸 Hero Statistics\n━━━━━━━━━━━━━━━\n`;
+        : `🦸 Hero Statistics\n➖➖➖➖➖➖➖➖➖➖➖\n`;
     heroText += language === 'RU'
         ? `${heroName} ур. ${hero.level}, ✊ ${hero.strength}, ⚔️ ${winPercentageFormatted}%\n`
         : `${heroName} lvl. ${hero.level}, ✊ ${hero.strength}, ⚔️ ${winPercentageFormatted}%\n`;

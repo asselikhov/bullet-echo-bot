@@ -81,8 +81,8 @@ module.exports = async (bot, msg, query) => {
                 `👤 Личный кабинет\n` +
                 `Никнейм: ${user.nickname || 'Не указан'}\n` +
                 `ID игрока: ${user.userId || 'Не указан'}\n` +
-                `🏆 Трофеи: ${user.trophies || 0}\n` +
-                `🛡️ Путь доблести: ${user.valorPath || 0}\n` +
+                `Трофеи: ${user.trophies || 0}\n` +
+                `Путь доблести: ${user.valorPath || 0}\n` +
                 `Синдикат: ${user.syndicate || 'Не указан'}\n` +
                 `Имя: ${user.name || 'Не указано'}\n` +
                 `Возраст: ${user.age || 'Не указан'}\n` +
@@ -94,8 +94,8 @@ module.exports = async (bot, msg, query) => {
                 `👤 Profile\n` +
                 `Nickname: ${user.nickname || 'Not set'}\n` +
                 `User ID: ${user.userId || 'Not set'}\n` +
-                `🏆 Trophies: ${user.trophies || 0}\n` +
-                `🛡️ Valor Path: ${user.valorPath || 0}\n` +
+                `Trophies: ${user.trophies || 0}\n` +
+                `Valor Path: ${user.valorPath || 0}\n` +
                 `Syndicate: ${user.syndicate || 'Not set'}\n` +
                 `Name: ${user.name || 'Not set'}\n` +
                 `Age: ${user.age || 'Not set'}\n` +

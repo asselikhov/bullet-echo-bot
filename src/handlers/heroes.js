@@ -90,16 +90,12 @@ module.exports = async (bot, msg, query) => {
           }
         ]),
         [{ text: user.language === 'RU' ? '➕ Герой' : '➕ Hero', callback_data: `heroes_add_${classId}` }],
-        [{ text: user.language === 'RU' ? '⬅️ Классы' : '⬅️ Classes', callback_data: 'heroes_back' }],
       ];
 
       bot.sendMessage(chatId, heroText, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: inlineKeyboard },
       });
-    } else if (data && data === 'heroes_back') {
-      console.log('Processing heroes_back callback');
-      await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
     } else if (data && data.startsWith('heroes_add_confirm_')) {
       const parts = data.split('_');
       console.log(`Raw callback data: ${data}, parts: ${parts}`);

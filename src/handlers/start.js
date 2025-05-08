@@ -1,5 +1,5 @@
 const User = require('../models/User');
-const registrationHandler = require('./registration');
+const mainMenuHandler = require('./mainMenu');
 
 module.exports = async (bot, msg) => {
   const chatId = msg.chat.id;
@@ -19,7 +19,9 @@ module.exports = async (bot, msg) => {
         telegramId: chatId.toString(),
         telegramUsername: msg.from.username ? `@${msg.from.username}` : null,
         registrationStep: 'language',
-        language: null // Язык пока не выбран
+        language: null,
+        trophies: 0,
+        valorPath: 0
       });
       console.log(`New user created: ${chatId}, registrationStep: ${user.registrationStep}`);
       bot.sendMessage(chatId, 'Выберите язык / Choose language:', {
@@ -30,15 +32,16 @@ module.exports = async (bot, msg) => {
           ],
         },
       });
-    } else if (user.registrationStep === 'completed') {
-      // Пользователь завершил регистрацию, показываем главное меню
-      console.log(`User ${chatId} already registered, redirecting to main menu`);
-      const mainMenuHandler = require('./mainMenu');
-      await mainMenuHandler(bot, msg);
     } else {
-      // Пользователь в процессе регистрации, перенаправляем в registrationHandler
-      console.log(`User ${chatId} in registration process, step: ${user.registrationStep}`);
-      await registrationHandler(bot, msg);
+      // Пользователь существует, показываем главное меню независимо от registrationStep
+      console.log(`User ${chatId} found, registrationStep: ${user.registrationStep}, redirecting to main menu`);
+      if (!user.language) {
+        // Устанавливаем язык по умолчанию, если не задан
+        user.language = 'RU';
+        await user.save();
+        console.log(`User ${chatId} language set to default: ${user.language}`);
+      }
+      await mainMenuHandler(bot, msg);
     }
   } catch (error) {
     console.error('Error in start handler:', error.stack);

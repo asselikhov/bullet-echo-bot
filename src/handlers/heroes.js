@@ -39,7 +39,8 @@ module.exports = async (bot, msg, query) => {
   const messageText = msg.text;
 
   if (!user) {
-    bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+    if (query) bot.answerCallbackQuery(query.id, { text: 'Пользователь не найден', show_alert: true });
     return;
   }
 
@@ -53,6 +54,7 @@ module.exports = async (bot, msg, query) => {
       if (!heroTranslations[classId]) {
         console.log(`Invalid classId in heroes_class: ${classId}, available: ${Object.keys(heroTranslations)}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный класс героев.' : 'Invalid hero class.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный класс', show_alert: true });
         return;
       }
       const heroes = await Hero.find({ userId: chatId.toString(), classId });
@@ -96,12 +98,14 @@ module.exports = async (bot, msg, query) => {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: inlineKeyboard },
       });
+      bot.answerCallbackQuery(query.id);
     } else if (data && data.startsWith('heroes_add_confirm_')) {
       const parts = data.split('_');
       console.log(`Raw callback data: ${data}, parts: ${parts}`);
       if (parts.length < 5) {
         console.log(`Invalid callback data format: ${data}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный формат данных.' : 'Invalid data format.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный формат', show_alert: true });
         return;
       }
       const classId = parts[3];
@@ -110,12 +114,14 @@ module.exports = async (bot, msg, query) => {
       if (!heroTranslations[classId] || !heroTranslations[classId].heroes[heroId]) {
         console.log(`Invalid classId or heroId: classId=${classId}, heroId=${heroId}, available heroes: ${Object.keys(heroTranslations[classId]?.heroes || {})}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный герой или класс.' : 'Invalid hero or class.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный герой', show_alert: true });
         return;
       }
 
       const existingHero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
       if (existingHero) {
         bot.sendMessage(chatId, user.language === 'RU' ? 'Этот герой уже добавлен!' : 'This hero is already added!');
+        bot.answerCallbackQuery(query.id, { text: 'Герой уже добавлен', show_alert: true });
         return;
       }
 
@@ -133,12 +139,14 @@ module.exports = async (bot, msg, query) => {
       });
       bot.sendMessage(chatId, user.language === 'RU' ? 'Герой добавлен!' : 'Hero added!');
       await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
+      bot.answerCallbackQuery(query.id);
     } else if (data && data.startsWith('heroes_add_')) {
       const classId = data.split('_')[2];
       console.log(`Processing heroes_add with classId: ${classId}`);
       if (!heroTranslations[classId]) {
         console.log(`Invalid classId in heroes_add: ${classId}, available: ${Object.keys(heroTranslations)}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный класс героев.' : 'Invalid hero class.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный класс', show_alert: true });
         return;
       }
       const userHeroes = await Hero.find({ userId: chatId.toString(), classId });
@@ -148,6 +156,7 @@ module.exports = async (bot, msg, query) => {
 
       if (availableHeroes.length === 0) {
         bot.sendMessage(chatId, user.language === 'RU' ? 'Все герои этого класса уже добавлены.' : 'All heroes of this class are already added.');
+        bot.answerCallbackQuery(query.id, { text: 'Все герои добавлены', show_alert: true });
         return;
       }
 
@@ -164,11 +173,13 @@ module.exports = async (bot, msg, query) => {
           }),
         },
       });
+      bot.answerCallbackQuery(query.id);
     } else if (data && data.startsWith('heroes_edit_')) {
       const parts = data.split('_');
       if (parts.length < 4) {
         console.log(`Invalid edit callback data: ${data}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный формат данных.' : 'Invalid data format.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный формат', show_alert: true });
         return;
       }
       const classId = parts[2];
@@ -177,11 +188,13 @@ module.exports = async (bot, msg, query) => {
       if (!heroTranslations[classId] || !heroTranslations[classId].heroes[heroId]) {
         console.log(`Invalid classId or heroId in edit: classId=${classId}, heroId=${heroId}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный герой или класс.' : 'Invalid hero or class.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный герой', show_alert: true });
         return;
       }
       const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
       if (!hero) {
         bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
         return;
       }
 
@@ -219,11 +232,13 @@ module.exports = async (bot, msg, query) => {
           ],
         },
       });
+      bot.answerCallbackQuery(query.id);
     } else if (data && data.startsWith('edit_')) {
       const parts = data.split('_');
       if (parts.length < 4) {
         console.log(`Invalid edit field callback: ${data}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный формат данных.' : 'Invalid data format.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверный формат', show_alert: true });
         return;
       }
       const field = parts[1];
@@ -235,6 +250,7 @@ module.exports = async (bot, msg, query) => {
       if (!validFields.includes(field)) {
         console.log(`Invalid field: ${field}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверное поле.' : 'Invalid field.');
+        bot.answerCallbackQuery(query.id, { text: 'Неверное поле', show_alert: true });
         return;
       }
 
@@ -244,6 +260,7 @@ module.exports = async (bot, msg, query) => {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
           user.registrationStep = null;
           await user.save();
+          bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
           return;
         }
 
@@ -251,6 +268,7 @@ module.exports = async (bot, msg, query) => {
         let newValue = parseFloat(cleanedText);
         if (isNaN(newValue)) {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Введите корректное число.' : 'Please enter a valid number.');
+          bot.answerCallbackQuery(query.id, { text: 'Некорректное число', show_alert: true });
           return;
         }
 
@@ -281,6 +299,7 @@ module.exports = async (bot, msg, query) => {
 
         bot.sendMessage(chatId, responseText, { parse_mode: 'HTML' });
         await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
+        bot.answerCallbackQuery(query.id);
       } else {
         user.registrationStep = `editing_${field}_${classId}_${heroId}`;
         await user.save();
@@ -295,13 +314,18 @@ module.exports = async (bot, msg, query) => {
         };
 
         bot.sendMessage(chatId, fieldPrompts[field]);
+        bot.answerCallbackQuery(query.id, { text: user.language === 'RU' ? 'Ожидаю ввод...' : 'Waiting for input...' });
       }
-    } else {
-      console.log(`Unknown callback data: ${data}`);
+    } else if (!data && user.registrationStep && user.registrationStep.startsWith('editing_')) {
+      // Игнорируем текстовые сообщения, связанные с редактированием параметров героя
+      return;
+    } else if (!data) {
+      console.log(`Unknown text message: ${messageText}`);
       bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
     }
   } catch (error) {
     console.error('Error in heroes handler:', error);
     bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
+    if (query) bot.answerCallbackQuery(query.id, { text: 'Ошибка обработки', show_alert: true });
   }
 };

@@ -8,8 +8,8 @@ const fieldsRU = ['никнейм', 'ID игрока', 'трофеи', 'путь
 const promptsEN = {
   nickname: 'Enter your nickname:',
   userId: 'Enter your user ID:',
-  trophies: 'Enter your Trophies (integer, e.g., 1500):',
-  valorPath: 'Enter your Valor Path points (integer, e.g., 500):',
+  trophies: 'Enter your Trophies (integer, e.g., 1500, or type "skip" to set 0):',
+  valorPath: 'Enter your Valor Path points (integer, e.g., 500, or type "skip" to set 0):',
   syndicate: 'Enter your syndicate (or type "skip" to skip):',
   name: 'Enter your name (or type "skip" to skip):',
   age: 'Enter your age (or type "skip" to skip):',
@@ -21,8 +21,8 @@ const promptsEN = {
 const promptsRU = {
   никнейм: 'Введите ваш никнейм:',
   'ID игрока': 'Введите ваш ID игрока:',
-  трофеи: 'Введите количество Трофеев (целое число, например, 1500):',
-  'путь доблести': 'Введите количество очков Пути доблести (целое число, например, 500):',
+  трофеи: 'Введите количество Трофеев (целое число, например, 1500, или введите "пропустить", чтобы установить 0):',
+  'путь доблести': 'Введите количество очков Пути доблести (целое число, например, 500, или введите "пропустить", чтобы установить 0):',
   синдикат: 'Введите ваш синдикат (или введите "пропустить", чтобы пропустить):',
   имя: 'Введите ваше имя (или введите "пропустить", чтобы пропустить):',
   возраст: 'Введите ваш возраст (или введите "пропустить", чтобы пропустить):',
@@ -57,7 +57,7 @@ module.exports = async (bot, msg, query) => {
       return;
     }
 
-    // Если пользователь на шаге language, но не выбрал язык
+    // Если пользователь на шаге language, запрашиваем выбор языка
     if (user.registrationStep === 'language') {
       console.log(`User ${chatId} on language step, prompting for language selection`);
       bot.sendMessage(chatId, 'Выберите язык / Choose language:', {
@@ -71,20 +71,40 @@ module.exports = async (bot, msg, query) => {
       return;
     }
 
+    // Игнорируем команды меню
+    const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
+    const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
+    const menuCommands = user.language === 'RU' ? menuCommandsRU : menuCommandsEN;
+    if (menuCommands.includes(text)) {
+      console.log(`Menu command detected in registration: ${text}, completing registration`);
+      user.registrationStep = 'completed';
+      if (!user.language) user.language = 'RU';
+      if (!user.trophies) user.trophies = 0;
+      if (!user.valorPath) user.valorPath = 0;
+      await user.save();
+      console.log(`User ${chatId} registration completed automatically`);
+      await mainMenuHandler(bot, msg);
+      return;
+    }
+
     // Обработка редактирования профиля
     if (user.registrationStep.startsWith('edit_')) {
       const field = user.registrationStep.split('_')[1];
       const fields = user.language === 'RU' ? fieldsRU : fieldsEN;
       const fieldKey = fields.find(f => f.toLowerCase() === field || f === field) || field;
       if (field === 'trophies' || field === 'valorPath') {
-        const value = parseInt(text);
-        if (isNaN(value) || value < 0) {
-          bot.sendMessage(chatId, user.language === 'RU' ? 'Введите целое неотрицательное число.' : 'Enter a non-negative integer.');
-          return;
+        if (text.toLowerCase() === 'skip' || text.toLowerCase() === 'пропустить') {
+          user[field] = 0;
+        } else {
+          const value = parseInt(text);
+          if (isNaN(value) || value < 0) {
+            bot.sendMessage(chatId, user.language === 'RU' ? 'Введите целое неотрицательное число или "пропустить".' : 'Enter a non-negative integer or "skip".');
+            return;
+          }
+          user[field] = value;
         }
-        user[field] = value;
       } else {
-        user[field] = text;
+        user[field] = text.trim();
       }
       user.registrationStep = 'completed';
       await user.save();
@@ -112,27 +132,29 @@ module.exports = async (bot, msg, query) => {
 
     if (currentFieldIndex === -1) {
       console.error(`Invalid registration step for user ${chatId}: ${user.registrationStep}`);
-      user.registrationStep = 'language';
+      user.registrationStep = 'completed';
+      if (!user.language) user.language = 'RU';
+      if (!user.trophies) user.trophies = 0;
+      if (!user.valorPath) user.valorPath = 0;
       await user.save();
-      bot.sendMessage(chatId, 'Выберите язык / Choose language:', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Русский (RU)', callback_data: 'language_RU' }],
-            [{ text: 'English (EN)', callback_data: 'language_EN' }],
-          ],
-        },
-      });
+      console.log(`User ${chatId} registration step fixed to completed`);
+      bot.sendMessage(chatId, user.language === 'RU' ? 'Регистрация завершена!' : 'Registration completed!');
+      await mainMenuHandler(bot, msg);
       return;
     }
 
     // Валидация ввода
     if (user.registrationStep === 'трофеи' || user.registrationStep === 'trophies' || user.registrationStep === 'путь доблести' || user.registrationStep === 'valorPath') {
-      const value = parseInt(text);
-      if (isNaN(value) || value < 0) {
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Введите целое неотрицательное число.' : 'Enter a non-negative integer.');
-        return;
+      if (text.toLowerCase() === 'skip' || text.toLowerCase() === 'пропустить') {
+        user[user.registrationStep] = 0;
+      } else {
+        const value = parseInt(text);
+        if (isNaN(value) || value < 0) {
+          bot.sendMessage(chatId, user.language === 'RU' ? 'Введите целое неотрицательное число или "пропустить".' : 'Enter a non-negative integer or "skip".');
+          return;
+        }
+        user[user.registrationStep] = value;
       }
-      user[user.registrationStep] = value;
     } else if (user.registrationStep === 'никнейм' || user.registrationStep === 'nickname' || user.registrationStep === 'ID игрока' || user.registrationStep === 'userId') {
       if (!text || text.trim() === '') {
         bot.sendMessage(chatId, user.language === 'RU' ? 'Поле обязательно для заполнения.' : 'This field is required.');

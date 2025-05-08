@@ -2,44 +2,44 @@ const User = require('../models/User');
 
 module.exports = async (bot, msg, query) => {
   const chatId = msg.chat.id;
-  const data = query.data;
+  const userId = msg.from.id.toString();
 
   try {
-    const user = await User.findOne({ telegramId: chatId.toString() });
+    let user = await User.findOne({ telegramId: userId });
     if (!user) {
-      bot.sendMessage(chatId, 'Пожалуйста, начните с команды /start.');
+      bot.sendMessage(chatId, 'Please start with /start.');
       return;
     }
 
-    if (data === 'settings_language') {
-      bot.sendMessage(chatId, user.language === 'RU' ? 'Выберите язык:' : 'Choose language:', {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Русский (RU)', callback_data: 'language_RU' }],
-            [{ text: 'English (EN)', callback_data: 'language_EN' }],
-          ],
-        },
-      });
-    } else if (data === 'language_RU' || data === 'language_EN') {
-      const language = data.split('_')[1];
-      user.language = language;
-      if (user.registrationStep === 'language') {
-        user.registrationStep = 'nickname';
+    // Handle callback query if it exists
+    if (query && query.data) {
+      const data = query.data;
+      console.log(`Processing settings callback: ${data}`);
+
+      if (data.startsWith('language_')) {
+        const newLanguage = data.split('_')[1];
+        user.language = newLanguage;
+        await user.save();
+        console.log(`Language updated to ${newLanguage} for user ${userId}`);
+        bot.sendMessage(chatId, newLanguage === 'RU' ? 'Язык обновлен на Русский!' : 'Language updated to English!');
+        return;
       }
-      await user.save();
-      console.log(`Language updated to ${user.language} for user ${user.telegramId}`);
-      bot.sendMessage(chatId, user.language === 'RU' ? 'Язык изменён на русский!' : 'Language changed to English!', {
-        reply_markup: {
-          keyboard: [
-            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
-            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
-          ],
-          resize_keyboard: true,
-        },
-      });
     }
+
+    // Handle settings command or menu option
+    const settingsMessage = user.language === 'RU' ?
+        '🇷🇺 Настройки:\nВыберите язык:' :
+        '🇬🇧 Settings:\nChoose language:';
+    bot.sendMessage(chatId, settingsMessage, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🇷🇺 Русский (RU)', callback_data: 'language_RU' }],
+          [{ text: '🇬🇧 English (EN)', callback_data: 'language_EN' }],
+        ],
+      },
+    });
   } catch (error) {
-    console.error('Error in settings handler:', error.stack);
-    bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
+    console.error(`Error in settingsHandler for user ${userId}:`, error.stack);
+    bot.sendMessage(chatId, '🇷🇺 Произошла ошибка. Попробуйте позже. 🇬🇧 An error occurred. Try again later.');
   }
 };

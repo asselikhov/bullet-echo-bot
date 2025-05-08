@@ -39,7 +39,7 @@ module.exports = async (bot, msg, query) => {
   const messageText = msg.text;
 
   if (!user) {
-    bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
     return;
   }
 
@@ -132,6 +132,15 @@ module.exports = async (bot, msg, query) => {
         isPrimary: false
       });
       bot.sendMessage(chatId, user.language === 'RU' ? 'Герой добавлен!' : 'Hero added!');
+
+      // Проверяем, что пользователь существует перед вызовом mainMenuHandler
+      const updatedUser = await User.findOne({ telegramId: chatId.toString() });
+      if (!updatedUser) {
+        console.error(`User not found after adding hero: telegramId=${chatId}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+        return;
+      }
+      console.log(`Calling mainMenuHandler for heroes_class_${classId}`);
       await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
     } else if (data && data.startsWith('heroes_add_')) {
       const classId = data.split('_')[2];
@@ -238,15 +247,16 @@ module.exports = async (bot, msg, query) => {
         return;
       }
 
-      if (user.registrationStep && user.registrationStep.startsWith(`editing_${field}_${classId}_${heroId}`)) {
-        const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
-        if (!hero) {
-          bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
-          user.registrationStep = null;
-          await user.save();
-          return;
-        }
+      const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
+      if (!hero) {
+        console.log(`Hero not found: userId=${chatId}, classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
+        user.registrationStep = null;
+        await user.save();
+        return;
+      }
 
+      if (user.registrationStep && user.registrationStep === `editing_${field}_${classId}_${heroId}`) {
         const cleanedText = messageText.replace(',', '.');
         let newValue = parseFloat(cleanedText);
         if (isNaN(newValue)) {
@@ -256,22 +266,26 @@ module.exports = async (bot, msg, query) => {
 
         if (field === 'win') {
           newValue = Math.min(100, Math.max(0, newValue));
-          const strValue = cleanedText.includes('.') ? cleanedText.split('.')[1].length : 0;
-          newValue = parseFloat(cleanedText);
-        } else if (['level', 'battles', 'killed', 'strength', 'revived'].includes(field)) {
+        } else {
           newValue = Math.max(0, Math.floor(newValue));
         }
 
-        hero[field] = newValue;
+        if (field === 'battles') hero.battlesPlayed = newValue;
+        else if (field === 'killed') hero.heroesKilled = newValue;
+        else if (field === 'revived') hero.heroesRevived = newValue;
+        else hero[field] = newValue;
+
+        hero.updatedAt = new Date();
         await hero.save();
         user.registrationStep = null;
         await user.save();
 
+        console.log(`Updated hero ${heroId}: ${field}=${newValue}`); // Лог для отладки
         const updatedAt = formatDateTime(new Date(hero.updatedAt), user.language);
         const responseText = user.language === 'RU' ?
             `<b>✏️ Редактирование ${heroTranslations[classId].heroes[heroId][user.language]}:</b>\n` +
             `${hero.isPrimary ? '⭐ ' : ''}🦸 ${heroTranslations[classId].heroes[heroId][user.language]}\n` +
-            `Уровень/Сила/Победы: ${hero.level}/${hero.strength}/${formatPercentage(hero.winPercentage)}%\n` +
+            `Уровень/Сила/Победы: ${hero.level}/${hero.strength}/${formatPercentage(hero.winPercentage).replace('.', ',')}%\n` +
             `Битвы/Убито/Воскр.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n\n` +
             `Обновлено: ${updatedAt}` :
             `<b>✏️ Editing ${heroTranslations[classId].heroes[heroId][user.language]}:</b>\n` +
@@ -281,10 +295,11 @@ module.exports = async (bot, msg, query) => {
             `Updated: ${updatedAt}`;
 
         bot.sendMessage(chatId, responseText, { parse_mode: 'HTML' });
-        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
+        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
       } else {
         user.registrationStep = `editing_${field}_${classId}_${heroId}`;
         await user.save();
+        console.log(`Set registrationStep: ${user.registrationStep}`); // Лог для отладки
 
         const fieldPrompts = {
           level: user.language === 'RU' ? 'Введите новый уровень (целое число, например, 5):' : 'Enter new level (integer, e.g., 5):',
@@ -297,12 +312,55 @@ module.exports = async (bot, msg, query) => {
 
         bot.sendMessage(chatId, fieldPrompts[field]);
       }
+    } else if (data && data.startsWith('set_primary_')) {
+      console.log(`Processing set_primary callback: ${data}`);
+      const parts = data.split('_');
+      if (parts.length < 5) {
+        console.log(`Invalid set_primary callback data: ${data}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный формат данных.' : 'Invalid data format.');
+        return;
+      }
+      const callbackUserId = parts[2];
+      const classId = parts[3];
+      const heroId = parts[4];
+
+      if (callbackUserId !== chatId.toString()) {
+        console.log(`Unauthorized attempt: callbackUserId=${callbackUserId}, chatId=${chatId}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'У вас нет прав для этого действия.' : 'You are not authorized for this action.');
+        return;
+      }
+
+      if (!heroTranslations[classId] || !heroTranslations[classId].heroes[heroId]) {
+        console.log(`Invalid classId or heroId: classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный герой или класс.' : 'Invalid hero or class.');
+        return;
+      }
+
+      const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
+      if (!hero) {
+        console.log(`Hero not found: userId=${chatId}, classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
+        return;
+      }
+
+      await Hero.findOneAndUpdate(
+          { userId: chatId.toString(), classId, heroId },
+          { isPrimary: true },
+          { new: true }
+      );
+      await Hero.updateMany(
+          { userId: chatId.toString(), classId, heroId: { $ne: heroId } },
+          { isPrimary: false }
+      );
+
+      bot.sendMessage(chatId, user.language === 'RU' ? '✅ Основной герой установлен!' : '✅ Primary hero set!');
+      await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
     } else {
       console.log(`Unknown callback data: ${data}`);
       bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
     }
   } catch (error) {
-    console.error('Error in heroes handler:', error);
+    console.error('Error in heroes handler:', error.stack);
     bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
   }
 };

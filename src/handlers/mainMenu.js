@@ -4,13 +4,10 @@ const heroTranslations = require('../constants/heroes');
 module.exports = async (bot, msg, query) => {
   const chatId = msg.chat.id;
   const data = query ? query.data : null;
-
-  console.log(`Processing mainMenu with data: ${data}, chatId: ${chatId}`); // Лог для отладки
   const user = await User.findOne({ telegramId: msg.from.id.toString() });
 
   if (!user) {
-    console.error(`User not found in mainMenu: telegramId=${msg.from.id}`);
-    bot.sendMessage(chatId, 'Пожалуйста, начните с /start. / Please start with /start.');
+    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
     return;
   }
 
@@ -84,13 +81,13 @@ module.exports = async (bot, msg, query) => {
         },
       });
     } else if (data && data.startsWith('heroes_class_')) {
-      console.log(`Redirecting to heroesHandler from mainMenu: ${data}`);
+      // Перенаправляем обработку в heroes.js
       const heroesHandler = require('./heroes');
       await heroesHandler(bot, msg, query);
     } else {
       // Отображаем главное меню с полным набором кнопок
       const menuText = language === 'RU' ? '🎮 Главное меню' : '🎮 Main Menu';
-      console.log(`Rendering full main menu for user ${user.telegramId}`);
+      console.log(`Rendering full main menu for user ${user.telegramId}`); // Отладочный лог
       const keyboard = language === 'RU' ? [
         ['ЛК', 'Рейтинг', 'Настройки'],
         ['Герои', 'Синдикаты', 'Поиск']
@@ -107,6 +104,7 @@ module.exports = async (bot, msg, query) => {
         }
       };
 
+      // Если это callback-запрос, редактируем сообщение
       if (query && query.message) {
         bot.editMessageText(menuText, {
           chat_id: chatId,
@@ -114,6 +112,7 @@ module.exports = async (bot, msg, query) => {
           reply_markup: replyMarkup.reply_markup
         });
       } else {
+        // Иначе отправляем новое сообщение
         bot.sendMessage(chatId, menuText, replyMarkup);
       }
     }

@@ -39,7 +39,7 @@ module.exports = async (bot, msg, query) => {
   const messageText = msg.text;
 
   if (!user) {
-    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
+    bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
     return;
   }
 
@@ -132,15 +132,6 @@ module.exports = async (bot, msg, query) => {
         isPrimary: false
       });
       bot.sendMessage(chatId, user.language === 'RU' ? 'Герой добавлен!' : 'Hero added!');
-
-      // Проверяем, что пользователь существует перед вызовом mainMenuHandler
-      const updatedUser = await User.findOne({ telegramId: chatId.toString() });
-      if (!updatedUser) {
-        console.error(`User not found after adding hero: telegramId=${chatId}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
-        return;
-      }
-      console.log(`Calling mainMenuHandler for heroes_class_${classId}`);
       await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
     } else if (data && data.startsWith('heroes_add_')) {
       const classId = data.split('_')[2];
@@ -215,12 +206,12 @@ module.exports = async (bot, msg, query) => {
               { text: user.language === 'RU' ? 'Сила' : 'Strength', callback_data: `edit_strength_${classId}_${heroId}` },
             ],
             [
-              { text: user.language === 'RU' ? 'Битвы' : 'Battles', callback_data: `edit_battles_${classId}_${heroId}` },
-              { text: user.language === 'RU' ? 'Убито' : 'Killed', callback_data: `edit_killed_${classId}_${heroId}` },
+              { text: user.language === 'RU' ? 'Битвы' : 'Battles', callback_data: `edit_battlesPlayed_${classId}_${heroId}` },
+              { text: user.language === 'RU' ? 'Убито' : 'Killed', callback_data: `edit_heroesKilled_${classId}_${heroId}` },
             ],
             [
-              { text: user.language === 'RU' ? 'Победы (%)' : 'Win Rate (%)', callback_data: `edit_win_${classId}_${heroId}` },
-              { text: user.language === 'RU' ? 'Воскр.' : 'Rev.', callback_data: `edit_revived_${classId}_${heroId}` },
+              { text: user.language === 'RU' ? 'Победы (%)' : 'Win Rate (%)', callback_data: `edit_winPercentage_${classId}_${heroId}` },
+              { text: user.language === 'RU' ? 'Воскр.' : 'Rev.', callback_data: `edit_heroesRevived_${classId}_${heroId}` },
             ],
             [
               { text: user.language === 'RU' ? '⬅️ Назад' : '⬅️ Back', callback_data: `heroes_class_${classId}` },
@@ -240,23 +231,22 @@ module.exports = async (bot, msg, query) => {
       const heroId = parts[3];
       console.log(`Preparing to edit field: ${field} for classId=${classId}, heroId=${heroId}`);
 
-      const validFields = ['level', 'battles', 'killed', 'win', 'strength', 'revived'];
+      const validFields = ['level', 'battlesPlayed', 'heroesKilled', 'winPercentage', 'strength', 'heroesRevived'];
       if (!validFields.includes(field)) {
         console.log(`Invalid field: ${field}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверное поле.' : 'Invalid field.');
         return;
       }
 
-      const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
-      if (!hero) {
-        console.log(`Hero not found: userId=${chatId}, classId=${classId}, heroId=${heroId}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
-        user.registrationStep = null;
-        await user.save();
-        return;
-      }
+      if (user.registrationStep && user.registrationStep.startsWith(`editing_${field}_${classId}_${heroId}`)) {
+        const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
+        if (!hero) {
+          bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
+          user.registrationStep = null;
+          await user.save();
+          return;
+        }
 
-      if (user.registrationStep && user.registrationStep === `editing_${field}_${classId}_${heroId}`) {
         const cleanedText = messageText.replace(',', '.');
         let newValue = parseFloat(cleanedText);
         if (isNaN(newValue)) {
@@ -264,28 +254,23 @@ module.exports = async (bot, msg, query) => {
           return;
         }
 
-        if (field === 'win') {
+        if (field === 'winPercentage') {
           newValue = Math.min(100, Math.max(0, newValue));
-        } else {
+        } else if (['level', 'battlesPlayed', 'heroesKilled', 'strength', 'heroesRevived'].includes(field)) {
           newValue = Math.max(0, Math.floor(newValue));
         }
 
-        if (field === 'battles') hero.battlesPlayed = newValue;
-        else if (field === 'killed') hero.heroesKilled = newValue;
-        else if (field === 'revived') hero.heroesRevived = newValue;
-        else hero[field] = newValue;
-
+        hero[field] = newValue;
         hero.updatedAt = new Date();
         await hero.save();
         user.registrationStep = null;
         await user.save();
 
-        console.log(`Updated hero ${heroId}: ${field}=${newValue}`); // Лог для отладки
         const updatedAt = formatDateTime(new Date(hero.updatedAt), user.language);
         const responseText = user.language === 'RU' ?
             `<b>✏️ Редактирование ${heroTranslations[classId].heroes[heroId][user.language]}:</b>\n` +
             `${hero.isPrimary ? '⭐ ' : ''}🦸 ${heroTranslations[classId].heroes[heroId][user.language]}\n` +
-            `Уровень/Сила/Победы: ${hero.level}/${hero.strength}/${formatPercentage(hero.winPercentage).replace('.', ',')}%\n` +
+            `Уровень/Сила/Победы: ${hero.level}/${hero.strength}/${formatPercentage(hero.winPercentage)}%\n` +
             `Битвы/Убито/Воскр.: ${hero.battlesPlayed}/${hero.heroesKilled}/${hero.heroesRevived}\n\n` +
             `Обновлено: ${updatedAt}` :
             `<b>✏️ Editing ${heroTranslations[classId].heroes[heroId][user.language]}:</b>\n` +
@@ -295,72 +280,28 @@ module.exports = async (bot, msg, query) => {
             `Updated: ${updatedAt}`;
 
         bot.sendMessage(chatId, responseText, { parse_mode: 'HTML' });
-        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
+        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
       } else {
         user.registrationStep = `editing_${field}_${classId}_${heroId}`;
         await user.save();
-        console.log(`Set registrationStep: ${user.registrationStep}`); // Лог для отладки
 
         const fieldPrompts = {
           level: user.language === 'RU' ? 'Введите новый уровень (целое число, например, 5):' : 'Enter new level (integer, e.g., 5):',
-          battles: user.language === 'RU' ? 'Введите количество сыгранных битв (целое число, например, 100):' : 'Enter number of battles played (integer, e.g., 100):',
-          killed: user.language === 'RU' ? 'Введите количество убитых героев (целое число, например, 50):' : 'Enter number of heroes killed (integer, e.g., 50):',
-          win: user.language === 'RU' ? 'Введите процент побед (число от 0 до 100, например, 75.5):' : 'Enter win percentage (number from 0 to 100, e.g., 75.5):',
+          battlesPlayed: user.language === 'RU' ? 'Введите количество сыгранных битв (целое число, например, 100):' : 'Enter number of battles played (integer, e.g., 100):',
+          heroesKilled: user.language === 'RU' ? 'Введите количество убитых героев (целое число, например, 50):' : 'Enter number of heroes killed (integer, e.g., 50):',
+          winPercentage: user.language === 'RU' ? 'Введите процент побед (число от 0 до 100, например, 75.5):' : 'Enter win percentage (number from 0 to 100, e.g., 75.5):',
           strength: user.language === 'RU' ? 'Введите значение силы (целое число, например, 50):' : 'Enter strength value (integer, e.g., 50):',
-          revived: user.language === 'RU' ? 'Введите количество воскрешённых героев (целое число, например, 10):' : 'Enter number of heroes revived (integer, e.g., 10):',
+          heroesRevived: user.language === 'RU' ? 'Введите количество воскрешённых героев (целое число, например, 10):' : 'Enter number of heroes revived (integer, e.g., 10):',
         };
 
         bot.sendMessage(chatId, fieldPrompts[field]);
       }
-    } else if (data && data.startsWith('set_primary_')) {
-      console.log(`Processing set_primary callback: ${data}`);
-      const parts = data.split('_');
-      if (parts.length < 5) {
-        console.log(`Invalid set_primary callback data: ${data}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный формат данных.' : 'Invalid data format.');
-        return;
-      }
-      const callbackUserId = parts[2];
-      const classId = parts[3];
-      const heroId = parts[4];
-
-      if (callbackUserId !== chatId.toString()) {
-        console.log(`Unauthorized attempt: callbackUserId=${callbackUserId}, chatId=${chatId}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'У вас нет прав для этого действия.' : 'You are not authorized for this action.');
-        return;
-      }
-
-      if (!heroTranslations[classId] || !heroTranslations[classId].heroes[heroId]) {
-        console.log(`Invalid classId or heroId: classId=${classId}, heroId=${heroId}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный герой или класс.' : 'Invalid hero or class.');
-        return;
-      }
-
-      const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
-      if (!hero) {
-        console.log(`Hero not found: userId=${chatId}, classId=${classId}, heroId=${heroId}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
-        return;
-      }
-
-      await Hero.findOneAndUpdate(
-          { userId: chatId.toString(), classId, heroId },
-          { isPrimary: true },
-          { new: true }
-      );
-      await Hero.updateMany(
-          { userId: chatId.toString(), classId, heroId: { $ne: heroId } },
-          { isPrimary: false }
-      );
-
-      bot.sendMessage(chatId, user.language === 'RU' ? '✅ Основной герой установлен!' : '✅ Primary hero set!');
-      await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
     } else {
       console.log(`Unknown callback data: ${data}`);
       bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
     }
   } catch (error) {
-    console.error('Error in heroes handler:', error.stack);
+    console.error('Error in heroes handler:', error);
     bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
   }
 };

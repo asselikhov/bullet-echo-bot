@@ -1,5 +1,4 @@
 const User = require('../models/User');
-const mainMenuHandler = require('./mainMenu');
 
 module.exports = async (bot, msg) => {
   const chatId = msg.chat.id;
@@ -11,19 +10,14 @@ module.exports = async (bot, msg) => {
   }
 
   try {
-    let user = await User.findOne({ telegramId: chatId.toString() });
+    const user = await User.findOne({ telegramId: chatId.toString() });
 
     if (!user) {
-      // Создаём нового пользователя
-      user = await User.create({
+      await User.create({
         telegramId: chatId.toString(),
         telegramUsername: msg.from.username ? `@${msg.from.username}` : null,
-        registrationStep: 'language',
-        language: null,
-        trophies: 0,
-        valorPath: 0
+        registrationStep: 'language'
       });
-      console.log(`New user created: ${chatId}, registrationStep: ${user.registrationStep}`);
       bot.sendMessage(chatId, 'Выберите язык / Choose language:', {
         reply_markup: {
           inline_keyboard: [
@@ -32,19 +26,21 @@ module.exports = async (bot, msg) => {
           ],
         },
       });
+    } else if (user.registrationStep !== 'completed') {
+      bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, завершите регистрацию.' : 'Please complete registration.');
     } else {
-      // Пользователь существует, показываем главное меню независимо от registrationStep
-      console.log(`User ${chatId} found, registrationStep: ${user.registrationStep}, redirecting to main menu`);
-      if (!user.language) {
-        // Устанавливаем язык по умолчанию, если не задан
-        user.language = 'RU';
-        await user.save();
-        console.log(`User ${chatId} language set to default: ${user.language}`);
-      }
-      await mainMenuHandler(bot, msg);
+      bot.sendMessage(chatId, user.language === 'RU' ? 'Добро пожаловать!' : 'Welcome!', {
+        reply_markup: {
+          keyboard: [
+            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
+            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
+          ],
+          resize_keyboard: true,
+        },
+      });
     }
   } catch (error) {
-    console.error('Error in start handler:', error.stack);
+    console.error('Error in start handler:', error);
     bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже / An error occurred. Try again later.');
   }
 };

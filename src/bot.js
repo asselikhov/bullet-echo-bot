@@ -15,6 +15,9 @@ const heroTranslations = require('./constants/heroes');
 const app = express();
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN);
 
+// Хранилище состояния редактирования (временное, для простоты)
+const editingState = {};
+
 // Функция форматирования даты и времени
 const formatDateTime = (date, language) => {
   const pad = (num) => String(num).padStart(2, '0');
@@ -64,7 +67,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy' });
 });
 
-// Обработка входящих обновлений
+// Обработка входящих обновлений от Telegram
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
@@ -85,11 +88,8 @@ bot.onText(/\/info\s+(.+)/, async (msg, match) => {
   }
 
   if (requester.registrationStep !== 'completed') {
-    // Автоматически завершаем регистрацию для существующих пользователей
-    requester.registrationStep = 'completed';
-    if (!requester.language) requester.language = 'RU';
-    await requester.save();
-    console.log(`User ${requester.telegramId} registration completed automatically`);
+    bot.sendMessage(chatId, '🇷🇺 Пожалуйста, пройдите регистрацию в личном чате с ботом, чтобы использовать команды в группе.\n🇬🇧 Please complete registration in a private chat with the bot to use commands in the group.');
+    return;
   }
 
   if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
@@ -236,11 +236,8 @@ bot.onText(/\/hero\s+(.+)\s+(.+)/, async (msg, match) => {
   }
 
   if (requester.registrationStep !== 'completed') {
-    // Автоматически завершаем регистрацию для существующих пользователей
-    requester.registrationStep = 'completed';
-    if (!requester.language) requester.language = 'RU';
-    await requester.save();
-    console.log(`User ${requester.telegramId} registration completed automatically`);
+    bot.sendMessage(chatId, '🇷🇺 Пожалуйста, пройдите регистрацию в личном чате с ботом, чтобы использовать команды в группе.\n🇬🇧 Please complete registration in a private chat with the bot to use commands in the group.');
+    return;
   }
 
   if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
@@ -326,6 +323,55 @@ bot.on('message', async (msg) => {
 
   console.log(`Received message: "${msg.text}" in chat type: ${msg.chat.type}, from user: ${msg.from.id}`);
 
+  // Проверка, находится ли пользователь в режиме редактирования (только в приватном чате)
+  if (msg.chat.type === 'private' && editingState[userId]) {
+    const { parameter, classId, heroId } = editingState[userId];
+    const user = await User.findOne({ telegramId: userId });
+    if (!user) {
+      bot.sendMessage(chatId, '🇷🇺 Пользователь не найден.\n🇬🇧 User not found.');
+      delete editingState[userId];
+      return;
+    }
+
+    const language = user.language || 'RU';
+    const hero = await Hero.findOne({ userId, classId, heroId });
+    if (!hero) {
+      bot.sendMessage(chatId, language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
+      delete editingState[userId];
+      return;
+    }
+
+    const value = parseInt(msg.text, 10);
+    if (isNaN(value) || value < 0) {
+      bot.sendMessage(chatId, language === 'RU' ? 'Пожалуйста, введите положительное число.' : 'Please enter a positive number.');
+      return;
+    }
+
+    try {
+      if (parameter === 'level') {
+        hero.level = value;
+      } else if (parameter === 'strength') {
+        hero.strength = value;
+      } else if (parameter === 'battlesPlayed') {
+        hero.battlesPlayed = value;
+      }
+
+      hero.updatedAt = new Date();
+      await hero.save();
+
+      bot.sendMessage(chatId, language === 'RU' ? `✅ Параметр "${parameter}" обновлён!` : `✅ Parameter "${parameter}" updated!`);
+      delete editingState[userId];
+
+      // Вызываем heroesHandler с имитацией callback-запроса
+      await heroesHandler(bot, msg, { data: `heroes_${classId}` });
+    } catch (error) {
+      console.error(`Error updating hero ${parameter}:`, error.stack);
+      bot.sendMessage(chatId, language === 'RU' ? '❌ Произошла ошибка при обновлении.' : '❌ An error occurred while updating.');
+      delete editingState[userId];
+    }
+    return;
+  }
+
   if (msg.text === '/start') {
     console.log('Ignoring /start command (handled by specific handler)');
     return;
@@ -340,7 +386,7 @@ bot.on('message', async (msg) => {
       console.log(`User ${msg.from.id} is not registered or registration incomplete (step: ${user ? user.registrationStep : 'none'})`);
       if (msg.text && msg.text.startsWith('/')) {
         console.log(`Command detected: ${msg.text}, prompting for registration`);
-        bot.sendMessage(chatId, '🇷🇺 Пожалуйста, пройдите регистрацию в личном чате с ботом.\n🇬🇧 Please complete registration in a private chat with the bot.');
+        bot.sendMessage(chatId, '🇷🇺 Пожалуйста, выберите язык через кнопку / Please select a language using the button.');
       } else {
         console.log('Ignoring non-command message in group from unregistered user');
       }
@@ -398,40 +444,37 @@ bot.on('message', async (msg) => {
       console.log(`Updated telegramUsername for user ${user.telegramId}: ${user.telegramUsername}`);
     }
 
-    // Автоматически завершаем регистрацию для существующих пользователей
-    if (user.registrationStep !== 'completed') {
-      user.registrationStep = 'completed';
-      if (!user.language) user.language = 'RU';
-      if (!user.trophies) user.trophies = 0;
-      if (!user.valorPath) user.valorPath = 0;
-      await user.save();
-      console.log(`User ${user.telegramId} registration completed automatically`);
-    }
+    if (user.registrationStep === 'completed') {
+      console.log(`User ${msg.from.id} registration completed, processing menu commands`);
+      const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
+      const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
+      const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
 
-    const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
-    const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-    const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
-
-    if (menuCommands.includes(msg.text)) {
-      console.log(`Menu command detected in private chat: ${msg.text}`);
-      if (msg.text === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
-        await mainMenuHandler(bot, msg, { data: 'menu_profile' });
-      } else if (msg.text === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
-      } else if (msg.text === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
-        await settingsHandler(bot, msg, { data: 'settings_language' });
-      } else if (msg.text === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
-        await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
-      } else if (msg.text === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
-      } else if (msg.text === (user.language === 'RU' ? 'Поиск' : 'Search')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
+      if (menuCommands.includes(msg.text)) {
+        console.log(`Menu command detected in private chat: ${msg.text}`);
+        if (msg.text === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
+          await mainMenuHandler(bot, msg, { data: 'menu_profile' });
+        } else if (msg.text === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
+        } else if (msg.text === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
+          await settingsHandler(bot, msg, { data: 'settings_language' });
+        } else if (msg.text === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
+          await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
+        } else if (msg.text === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
+        } else if (msg.text === (user.language === 'RU' ? 'Поиск' : 'Search')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
+        }
+      } else if (!msg.text || msg.text.trim() === '') {
+        // Показываем полное меню при пустом или первом сообщении
+        await mainMenuHandler(bot, msg);
+      } else {
+        console.log(`Ignoring non-menu message in private chat from registered user: ${msg.text}`);
+        return;
       }
-    } else if (!msg.text || msg.text.trim() === '') {
-      await mainMenuHandler(bot, msg);
     } else {
-      console.log(`Ignoring non-menu message in private chat: ${msg.text}`);
-      await registrationHandler(bot, msg); // Обрабатываем только не-menu сообщения как часть регистрации
+      console.log(`User ${msg.from.id} in registration process, proceeding to registration handler`);
+      await registrationHandler(bot, msg);
     }
   }
 });
@@ -451,15 +494,147 @@ bot.on('callback_query', async (query) => {
     } else if (data.startsWith('profile_')) {
       console.log(`Processing profile callback: ${data}`);
       await profileHandler(bot, msg, query);
-    } else if (data.startsWith('settings_')) {
+    } else if (data.startsWith('settings_') || data === 'language_RU' || data === 'language_EN') {
       console.log(`Processing settings callback: ${data}`);
       await settingsHandler(bot, msg, query);
-    } else if (data.startsWith('heroes_') || data.startsWith('edit_') || data.startsWith('set_primary_')) {
+    } else if (data.startsWith('heroes_')) {
       console.log(`Processing heroes callback: ${data}`);
       await heroesHandler(bot, msg, query);
-    } else if (data === 'language_RU' || data === 'language_EN') {
-      console.log(`Processing language selection callback: ${data}`);
-      await registrationHandler(bot, msg, query);
+    } else if (data.startsWith('set_primary_')) {
+      console.log(`Processing set_primary callback: data="${data}"`);
+      const cleanedData = data.trim().replace(/\s+/g, '');
+      const parts = cleanedData.split('_');
+
+      console.log(`Cleaned data: "${cleanedData}", parts: ${JSON.stringify(parts)}`);
+
+      if (parts.length !== 5 || parts[0] !== 'set' || parts[1] !== 'primary') {
+        console.error(`Invalid callback data format: "${cleanedData}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный формат данных. Попробуйте снова.\n🇬🇧 Invalid data format. Please try again.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка формата', show_alert: true });
+        return;
+      }
+
+      const callbackUserId = parts[2];
+      const classId = parts[3];
+      const heroId = parts[4];
+
+      if (!/^\d+$/.test(callbackUserId)) {
+        console.error(`Invalid userId format: "${callbackUserId}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный идентификатор пользователя.\n🇬🇧 Invalid user ID.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка ID', show_alert: true });
+        return;
+      }
+
+      if (callbackUserId !== userId) {
+        console.log(`Unauthorized attempt: callbackUserId=${callbackUserId}, userId=${userId}`);
+        bot.sendMessage(chatId, '🇷🇺 У вас нет прав для этого действия.\n🇬🇧 You are not authorized for this action.');
+        bot.answerCallbackQuery(query.id, { text: 'Нет прав', show_alert: true });
+        return;
+      }
+
+      if (!heroTranslations[classId]) {
+        console.log(`Invalid classId: "${classId}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный класс героя.\n🇬🇧 Invalid hero class.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка класса', show_alert: true });
+        return;
+      }
+
+      if (!heroTranslations[classId].heroes[heroId]) {
+        console.log(`Invalid heroId: "${heroId}" for class "${classId}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный герой.\n🇬🇧 Invalid hero.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка героя', show_alert: true });
+        return;
+      }
+
+      const hero = await Hero.findOne({ userId: callbackUserId, classId, heroId });
+      if (!hero) {
+        console.log(`Hero not found: userId=${callbackUserId}, classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, '🇷🇺 Герой не найден.\n🇬🇧 Hero not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
+        return;
+      }
+
+      const user = await User.findOne({ telegramId: callbackUserId });
+      if (!user) {
+        console.log(`User not found: telegramId=${callbackUserId}`);
+        bot.sendMessage(chatId, '🇷🇺 Пользователь не найден.\n🇬🇧 User not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Пользователь не найден', show_alert: true });
+        return;
+      }
+
+      await Hero.findOneAndUpdate(
+          { userId: callbackUserId, classId, heroId },
+          { isPrimary: true },
+          { new: true }
+      );
+      await Hero.updateMany(
+          { userId: callbackUserId, classId, heroId: { $ne: heroId } },
+          { isPrimary: false }
+      );
+
+      const language = user.language || 'RU';
+      bot.sendMessage(chatId, language === 'RU' ? '✅ Основной герой установлен!' : '✅ Primary hero set!');
+      await heroesHandler(bot, msg, query);
+    } else if (data.startsWith('edit_')) {
+      console.log(`Processing edit callback: ${data}`);
+      const parts = data.split('_');
+      if (parts.length !== 4 || parts[0] !== 'edit') {
+        console.error(`Invalid edit callback data format: "${data}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный формат данных. Попробуйте снова.\n🇬🇧 Invalid data format. Please try again.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка формата', show_alert: true });
+        return;
+      }
+
+      const parameter = parts[1];
+      const classId = parts[2];
+      const heroId = parts[3];
+
+      if (!['level', 'strength', 'battlesPlayed'].includes(parameter)) {
+        console.error(`Invalid parameter: "${parameter}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный параметр для редактирования.\n🇬🇧 Invalid parameter for editing.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка параметра', show_alert: true });
+        return;
+      }
+
+      if (!heroTranslations[classId] || !heroTranslations[classId].heroes[heroId]) {
+        console.log(`Invalid classId or heroId: classId="${classId}", heroId="${heroId}"`);
+        bot.sendMessage(chatId, '🇷🇺 Неверный герой или класс.\n🇬🇧 Invalid hero or class.');
+        bot.answerCallbackQuery(query.id, { text: 'Ошибка героя', show_alert: true });
+        return;
+      }
+
+      const hero = await Hero.findOne({ userId, classId, heroId });
+      if (!hero) {
+        console.log(`Hero not found: userId=${userId}, classId=${classId}, heroId=${heroId}`);
+        bot.sendMessage(chatId, '🇷🇺 Герой не найден.\n🇬🇧 Hero not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
+        return;
+      }
+
+      const user = await User.findOne({ telegramId: userId });
+      if (!user) {
+        console.log(`User not found: telegramId=${userId}`);
+        bot.sendMessage(chatId, '🇷🇺 Пользователь не найден.\n🇬🇧 User not found.');
+        bot.answerCallbackQuery(query.id, { text: 'Пользователь не найден', show_alert: true });
+        return;
+      }
+
+      // Сохраняем состояние редактирования
+      editingState[userId] = { parameter, classId, heroId };
+      const language = user.language || 'RU';
+      const promptText = language === 'RU'
+          ? {
+            level: 'Введите новый уровень героя:',
+            strength: 'Введите новую силу героя:',
+            battlesPlayed: 'Введите новое количество битв:'
+          }
+          : {
+            level: 'Enter the new hero level:',
+            strength: 'Enter the new hero strength:',
+            battlesPlayed: 'Enter the new number of battles:'
+          };
+      bot.sendMessage(chatId, promptText[parameter]);
+      bot.answerCallbackQuery(query.id, { text: language === 'RU' ? 'Ожидаю ввод...' : 'Waiting for input...', show_alert: false });
     } else {
       console.log(`Unknown callback data: ${data}`);
       bot.sendMessage(chatId, '🇷🇺 Неизвестная команда.\n🇬🇧 Unknown command.');

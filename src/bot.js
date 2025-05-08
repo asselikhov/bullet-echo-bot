@@ -606,7 +606,7 @@ bot.on('callback_query', async (query) => {
       const hero = await Hero.findOne({ userId, classId, heroId });
       if (!hero) {
         console.log(`Hero not found: userId=${userId}, classId=${classId}, heroId=${heroId}`);
-        bot.sendMessage(chatId, '🇷🇺 Герой не найден.\n🇬🇋 Hero not found.');
+        bot.sendMessage(chatId, '🇷🇺 Герой не найден.\n🇬🇧 Hero not found.');
         bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
         return;
       }

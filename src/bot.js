@@ -335,7 +335,7 @@ bot.on('message', async (msg) => {
     return registrationHandler(bot, msg);
   }
 
-  // Обработка команд меню
+  // Обработка команд меню для зарегистрированных пользователей
   if (text === 'ЛК' || text === 'Profile') {
     return profileHandler(bot, msg);
   }

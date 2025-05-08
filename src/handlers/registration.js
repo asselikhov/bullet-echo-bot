@@ -1,5 +1,4 @@
 const User = require('../models/User');
-const Hero = require('../models/Hero');
 
 const fieldsEN = ['nickname', 'userId', 'trophies', 'valorPath', 'syndicate', 'name', 'age', 'gender', 'country', 'city'];
 const fieldsRU = ['nickname', 'userId', 'trophies', 'valorPath', 'syndicate', 'name', 'age', 'gender', 'country', 'city'];
@@ -88,13 +87,7 @@ module.exports = async (bot, msg) => {
     const currentFieldIndex = fields.indexOf(user.registrationStep);
 
     if (currentFieldIndex === -1) {
-      const hero = await Hero.findOne({ userId: chatId.toString(), registrationStep: { $exists: true } });
-      if (hero) {
-        hero[hero.registrationStep] = text;
-        hero.registrationStep = null;
-        await hero.save();
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Статистика героя обновлена!' : 'Hero stats updated!');
-      }
+      bot.sendMessage(chatId, user.language === 'RU' ? 'Ошибка регистрации. Попробуйте снова с /start.' : 'Registration error. Try again with /start.');
       return;
     }
 

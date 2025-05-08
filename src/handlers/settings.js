@@ -21,9 +21,13 @@ module.exports = async (bot, msg, query) => {
         },
       });
     } else if (data === 'language_RU' || data === 'language_EN') {
-      user.language = data.split('_')[1];
+      const language = data.split('_')[1];
+      user.language = language;
+      if (user.registrationStep === 'language') {
+        user.registrationStep = 'nickname';
+      }
       await user.save();
-      console.log(`Language updated to ${user.language} for user ${user.telegramId}`); // Отладочный лог
+      console.log(`Language updated to ${user.language} for user ${user.telegramId}`);
       bot.sendMessage(chatId, user.language === 'RU' ? 'Язык изменён на русский!' : 'Language changed to English!', {
         reply_markup: {
           keyboard: [
@@ -35,7 +39,7 @@ module.exports = async (bot, msg, query) => {
       });
     }
   } catch (error) {
-    console.error('Error in settings handler:', error);
+    console.error('Error in settings handler:', error.stack);
     bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
   }
 };

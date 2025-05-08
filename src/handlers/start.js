@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const heroesHandler = require('./heroes');
 
 module.exports = async (bot, msg) => {
   const chatId = msg.chat.id;
@@ -35,6 +36,10 @@ module.exports = async (bot, msg) => {
         },
       });
       console.log(`Sent welcome message to chatId: ${chatId}, text: "${welcomeMessage}"`);
+    } else if (user.registrationStep && user.registrationStep.startsWith('editing_')) {
+      // Пользователь в режиме редактирования героя
+      console.log(`User ${userId} is in hero editing step: ${user.registrationStep}`);
+      await heroesHandler(bot, msg, null); // Перенаправляем в heroes.js
     } else if (user.registrationStep !== 'completed') {
       // Пользователь в процессе регистрации
       console.log(`User ${userId} is in registration step: ${user.registrationStep}`);

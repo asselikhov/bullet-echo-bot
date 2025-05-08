@@ -1,9 +1,9 @@
-console.log('Using heroes.js version: 2025-05-27'); // Новый маркер версии
+console.log('Using heroes.js version: 2025-05-27');
 
 const User = require('../models/User');
 const Hero = require('../models/Hero');
 const heroTranslations = require('../constants/heroes.js');
-const mainMenuHandler = require('./mainMenu'); // Импортируем mainMenuHandler
+const mainMenuHandler = require('./mainMenu');
 
 // Функция форматирования даты и времени
 const formatDateTime = (date, language) => {
@@ -27,10 +27,10 @@ const formatPercentage = (value) => {
   const [integer, decimal = ''] = num.toString().split('.');
   if (!decimal) return `${integer}.00`;
   if (decimal.length < 2) return `${integer}.${decimal.padEnd(2, '0')}`;
-  return num.toString(); // Возвращаем как есть, если знаков после запятой >= 2
+  return num.toString();
 };
 
-console.log('heroTranslations loaded:', Object.keys(heroTranslations)); // Отладочный лог
+console.log('heroTranslations loaded:', Object.keys(heroTranslations));
 
 module.exports = async (bot, msg, query) => {
   const chatId = msg.chat.id;
@@ -44,7 +44,7 @@ module.exports = async (bot, msg, query) => {
     return;
   }
 
-  console.log(`Handling callback: ${data}, message: ${messageText}`); // Дополнительный лог
+  console.log(`Handling callback: ${data}, message: ${messageText}`);
 
   const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
   const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
@@ -54,7 +54,7 @@ module.exports = async (bot, msg, query) => {
     if (data && data.startsWith('heroes_class_')) {
       const classId = data.split('_')[2];
       console.log(`Processing heroes_class with classId: ${classId}`);
-      console.log(`Structure of heroTranslations[${classId}]:`, heroTranslations[classId]); // Диагностика структуры
+      console.log(`Structure of heroTranslations[${classId}]:`, heroTranslations[classId]);
       if (!heroTranslations[classId]) {
         console.log(`Invalid classId in heroes_class: ${classId}, available: ${Object.keys(heroTranslations)}`);
         bot.sendMessage(chatId, user.language === 'RU' ? 'Неверный класс героев.' : 'Invalid hero class.');
@@ -142,7 +142,7 @@ module.exports = async (bot, msg, query) => {
         isPrimary: false
       });
       bot.sendMessage(chatId, user.language === 'RU' ? 'Герой добавлен!' : 'Hero added!');
-      await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
+      await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
       bot.answerCallbackQuery(query.id);
     } else if (data && data.startsWith('heroes_add_')) {
       const classId = data.split('_')[2];
@@ -262,7 +262,7 @@ module.exports = async (bot, msg, query) => {
         const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
         if (!hero) {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
-          user.registrationercusStep = null;
+          user.registrationStep = null;
           await user.save();
           bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
           return;
@@ -272,10 +272,9 @@ module.exports = async (bot, msg, query) => {
         let newValue = parseFloat(cleanedText);
         if (isNaN(newValue)) {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Введите корректное число.' : 'Please enter a valid number.');
-          user.registrationStep = null; // Сбрасываем режим редактирования
+          user.registrationStep = null;
           await user.save();
           if (menuCommands.includes(messageText)) {
-            // Обрабатываем команду меню
             if (messageText === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
               await mainMenuHandler(bot, msg, { data: 'menu_profile' });
             } else if (messageText === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
@@ -319,7 +318,7 @@ module.exports = async (bot, msg, query) => {
             `Updated: ${updatedAt}`;
 
         bot.sendMessage(chatId, responseText, { parse_mode: 'HTML' });
-        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` }); // Возвращаемся к списку героев класса
+        await mainMenuHandler(bot, msg, { data: `heroes_class_${classId}` });
         bot.answerCallbackQuery(query.id);
       } else {
         user.registrationStep = `editing_${field}_${classId}_${heroId}`;
@@ -355,7 +354,6 @@ module.exports = async (bot, msg, query) => {
           bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
         }
       } else {
-        // Игнорируем текстовые сообщения, не являющиеся командами меню
         return;
       }
     } else if (!data) {
@@ -363,7 +361,7 @@ module.exports = async (bot, msg, query) => {
       bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
     }
   } catch (error) {
-    console.error('Error in heroes handler:', error);
+    console.error('Error in heroes handler:', error.stack);
     bot.sendMessage(chatId, user.language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
     if (query) bot.answerCallbackQuery(query.id, { text: 'Ошибка обработки', show_alert: true });
   }

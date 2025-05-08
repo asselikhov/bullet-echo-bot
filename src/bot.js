@@ -316,118 +316,47 @@ bot.onText(/\/hero\s+(.+)\s+(.+)/, async (msg, match) => {
 
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+  const text = msg.text;
+  const user = await User.findOne({ telegramId: chatId.toString() });
 
-  console.log(`Received message: "${msg.text}" in chat type: ${msg.chat.type}, from user: ${msg.from.id}`);
-
-  if (msg.text === '/start') {
-    console.log('Ignoring /start command (handled by specific handler)');
-    return;
+  if (!user) {
+    return startHandler(bot, msg);
   }
 
-  const user = await User.findOne({ telegramId: msg.from.id.toString() });
+  console.log(`Message received in ${msg.chat.type} chat`);
 
-  if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
-    console.log('Message received in group/supergroup');
-
-    if (!user || user.registrationStep !== 'completed') {
-      console.log(`User ${msg.from.id} is not registered or registration incomplete (step: ${user ? user.registrationStep : 'none'})`);
-      if (msg.text && msg.text.startsWith('/')) {
-        console.log(`Command detected: ${msg.text}, prompting for registration`);
-        bot.sendMessage(chatId, '🇷🇺 Пожалуйста, выберите язык через кнопку / Please select a language using the button.');
-      } else {
-        console.log('Ignoring non-command message in group from unregistered user');
-      }
-      return;
-    }
-
-    console.log(`User ${msg.from.id} is registered, processing message`);
-
-    const newUsername = msg.from.username ? `@${msg.from.username}` : null;
-    if (newUsername && user.telegramUsername !== newUsername) {
-      user.telegramUsername = newUsername;
-      await user.save();
-      console.log(`Updated telegramUsername for user ${user.telegramId}: ${user.telegramUsername}`);
-    }
-
-    const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
-    const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-    const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
-
-    if (msg.text && msg.text.startsWith('/')) {
-      console.log(`Command detected for registered user: ${msg.text}, ignoring here (handled by specific handlers)`);
-      return;
-    } else if (menuCommands.includes(msg.text)) {
-      console.log(`Menu command detected: ${msg.text}`);
-      if (msg.text === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
-        await mainMenuHandler(bot, msg, { data: 'menu_profile' });
-      } else if (msg.text === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
-      } else if (msg.text === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
-        await settingsHandler(bot, msg, { data: 'settings_language' });
-      } else if (msg.text === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
-        await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
-      } else if (msg.text === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
-      } else if (msg.text === (user.language === 'RU' ? 'Поиск' : 'Search')) {
-        bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
-      }
-    } else {
-      console.log(`Ignoring non-command/non-menu message in group from registered user: ${msg.text}`);
-      return;
-    }
-  } else {
-    console.log('Message received in private chat');
-
-    if (!user) {
-      console.log(`User ${msg.from.id} not found in private chat, proceeding to registration`);
-      await registrationHandler(bot, msg);
-      return;
-    }
-
-    const newUsername = msg.from.username ? `@${msg.from.username}` : null;
-    if (newUsername && user.telegramUsername !== newUsername) {
-      user.telegramUsername = newUsername;
-      await user.save();
-      console.log(`Updated telegramUsername for user ${user.telegramId}: ${user.telegramUsername}`);
-    }
-
-    const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
-    const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-    const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
-
-    if (user.registrationStep && user.registrationStep.startsWith('editing_')) {
-      console.log(`User ${msg.from.id} in editing mode, processing in heroes handler`);
-      await heroesHandler(bot, msg, null);
-    } else if (user.registrationStep === 'completed') {
-      console.log(`User ${msg.from.id} registration completed, processing menu commands`);
-      if (menuCommands.includes(msg.text)) {
-        console.log(`Menu command detected in private chat: ${msg.text}`);
-        if (msg.text === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
-          await mainMenuHandler(bot, msg, { data: 'menu_profile' });
-        } else if (msg.text === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
-          bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
-        } else if (msg.text === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
-          await settingsHandler(bot, msg, { data: 'settings_language' });
-        } else if (msg.text === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
-          await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
-        } else if (msg.text === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
-          bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
-        } else if (msg.text === (user.language === 'RU' ? 'Поиск' : 'Search')) {
-          bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
-        }
-      } else if (!msg.text || msg.text.trim() === '') {
-        // Показываем полное меню при пустом или первом сообщении
-        await mainMenuHandler(bot, msg);
-      } else {
-        console.log(`Ignoring non-menu message in private chat from registered user: ${msg.text}`);
-        bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
-      }
-    } else {
-      console.log(`User ${msg.from.id} in registration process, proceeding to registration handler`);
-      await registrationHandler(bot, msg);
-    }
+  if (user.registrationStep && user.registrationStep.startsWith('editing_')) {
+    console.log(`User ${chatId} in editing mode, processing in heroes handler`);
+    return heroesHandler(bot, msg, null);
   }
+
+  if (user.registrationStep && user.registrationStep !== 'completed') {
+    console.log(`User ${chatId} in registration process, proceeding to registration handler`);
+    return registrationHandler(bot, msg);
+  }
+
+  // Обработка команд меню
+  if (text === 'ЛК' || text === 'Profile') {
+    return profileHandler(bot, msg);
+  }
+  if (text === 'Герои' || text === 'Heroes') {
+    return heroesHandler(bot, msg, null);
+  }
+  if (text === 'Рейтинг' || text === 'Rating') {
+    return mainMenuHandler(bot, msg); // Предполагается, что обработчик рейтинга существует
+  }
+  if (text === 'Настройки' || text === 'Settings') {
+    return settingsHandler(bot, msg);
+  }
+  if (text === 'Синдикаты' || text === 'Syndicates') {
+    return mainMenuHandler(bot, msg); // Предполагается, что обработчик синдикатов существует
+  }
+  if (text === 'Поиск' || text === 'Search') {
+    return mainMenuHandler(bot, msg); // Предполагается, что обработчик поиска существует
+  }
+
+  // Игнорировать неизвестные сообщения
+  console.log(`Ignoring unknown message: ${text}`);
 });
 
 bot.on('callback_query', async (query) => {

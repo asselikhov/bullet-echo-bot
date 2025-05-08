@@ -55,6 +55,11 @@ module.exports = async (bot, msg) => {
       return;
     }
 
+    if (user.registrationStep === null || user.registrationStep === 'completed') {
+      console.log(`Ignoring registration handler for user ${chatId}, registrationStep: ${user.registrationStep}`);
+      return;
+    }
+
     if (user.registrationStep.startsWith('edit_')) {
       const field = user.registrationStep.split('_')[1];
       if (field === 'trophies' || field === 'valorPath') {
@@ -124,7 +129,7 @@ module.exports = async (bot, msg) => {
       });
     }
   } catch (error) {
-    console.error('Error in registration handler:', error);
+    console.error('Error in registration handler:', error.stack);
     bot.sendMessage(chatId, 'Произошла ошибка / An error occurred.');
   }
 };

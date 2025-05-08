@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const registrationHandler = require('./registration');
 
 module.exports = async (bot, msg) => {
   const chatId = msg.chat.id;
@@ -10,14 +11,17 @@ module.exports = async (bot, msg) => {
   }
 
   try {
-    const user = await User.findOne({ telegramId: chatId.toString() });
+    let user = await User.findOne({ telegramId: chatId.toString() });
 
     if (!user) {
-      await User.create({
+      // Создаём нового пользователя
+      user = await User.create({
         telegramId: chatId.toString(),
         telegramUsername: msg.from.username ? `@${msg.from.username}` : null,
-        registrationStep: 'language'
+        registrationStep: 'language',
+        language: null // Язык пока не выбран
       });
+      console.log(`New user created: ${chatId}, registrationStep: ${user.registrationStep}`);
       bot.sendMessage(chatId, 'Выберите язык / Choose language:', {
         reply_markup: {
           inline_keyboard: [
@@ -26,21 +30,18 @@ module.exports = async (bot, msg) => {
           ],
         },
       });
-    } else if (user.registrationStep !== 'completed') {
-      bot.sendMessage(chatId, user.language === 'RU' ? 'Пожалуйста, завершите регистрацию.' : 'Please complete registration.');
+    } else if (user.registrationStep === 'completed') {
+      // Пользователь завершил регистрацию, показываем главное меню
+      console.log(`User ${chatId} already registered, redirecting to main menu`);
+      const mainMenuHandler = require('./mainMenu');
+      await mainMenuHandler(bot, msg);
     } else {
-      bot.sendMessage(chatId, user.language === 'RU' ? 'Добро пожаловать!' : 'Welcome!', {
-        reply_markup: {
-          keyboard: [
-            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
-            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
-          ],
-          resize_keyboard: true,
-        },
-      });
+      // Пользователь в процессе регистрации, перенаправляем в registrationHandler
+      console.log(`User ${chatId} in registration process, step: ${user.registrationStep}`);
+      await registrationHandler(bot, msg);
     }
   } catch (error) {
-    console.error('Error in start handler:', error);
+    console.error('Error in start handler:', error.stack);
     bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже / An error occurred. Try again later.');
   }
 };

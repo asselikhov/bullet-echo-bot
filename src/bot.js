@@ -64,7 +64,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'healthy' });
 });
 
-// Обработка входящих обновлений от.... (оставить без изменений)
+// Обработка входящих обновлений
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
@@ -334,7 +334,7 @@ bot.on('message', async (msg) => {
       console.log(`User ${msg.from.id} is not registered or registration incomplete (step: ${user ? user.registrationStep : 'none'})`);
       if (msg.text && msg.text.startsWith('/')) {
         console.log(`Command detected: ${msg.text}, prompting for registration`);
-        bot.sendMessage(chatId, '🇷🇺 Пожалуйста, выберите язык через кнопку / Please select a language using the button.');
+        bot.sendMessage(chatId, '🇷🇺 Пожалуйста, пройдите регистрацию в личном чате с ботом.\n🇬🇧 Please complete registration in a private chat with the bot.');
       } else {
         console.log('Ignoring non-command message in group from unregistered user');
       }
@@ -417,7 +417,7 @@ bot.on('message', async (msg) => {
         await mainMenuHandler(bot, msg);
       } else {
         console.log(`Ignoring non-menu message in private chat from registered user: ${msg.text}`);
-        await registrationHandler(bot, msg); // Передаём в registrationHandler для обработки ввода
+        // Не вызываем registrationHandler для зарегистрированных пользователей
       }
     } else {
       console.log(`User ${msg.from.id} in registration process, proceeding to registration handler`);
@@ -441,12 +441,15 @@ bot.on('callback_query', async (query) => {
     } else if (data.startsWith('profile_')) {
       console.log(`Processing profile callback: ${data}`);
       await profileHandler(bot, msg, query);
-    } else if (data.startsWith('settings_') || data === 'language_RU' || data === 'language_EN') {
+    } else if (data.startsWith('settings_')) {
       console.log(`Processing settings callback: ${data}`);
       await settingsHandler(bot, msg, query);
     } else if (data.startsWith('heroes_') || data.startsWith('edit_') || data.startsWith('set_primary_')) {
       console.log(`Processing heroes callback: ${data}`);
       await heroesHandler(bot, msg, query);
+    } else if (data === 'language_RU' || data === 'language_EN') {
+      console.log(`Processing language selection callback: ${data}`);
+      await registrationHandler(bot, msg, query);
     } else {
       console.log(`Unknown callback data: ${data}`);
       bot.sendMessage(chatId, '🇷🇺 Неизвестная команда.\n🇬🇧 Unknown command.');

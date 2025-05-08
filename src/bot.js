@@ -323,8 +323,8 @@ bot.on('message', async (msg) => {
 
   console.log(`Received message: "${msg.text}" in chat type: ${msg.chat.type}, from user: ${msg.from.id}`);
 
-  // Проверка, находится ли пользователь в режиме редактирования
-  if (editingState[userId]) {
+  // Проверка, находится ли пользователь в режиме редактирования (только в приватном чате)
+  if (msg.chat.type === 'private' && editingState[userId]) {
     const { parameter, classId, heroId } = editingState[userId];
     const user = await User.findOne({ telegramId: userId });
     if (!user) {

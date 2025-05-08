@@ -392,12 +392,15 @@ bot.on('message', async (msg) => {
       console.log(`Updated telegramUsername for user ${user.telegramId}: ${user.telegramUsername}`);
     }
 
-    if (user.registrationStep === 'completed') {
-      console.log(`User ${msg.from.id} registration completed, processing menu commands`);
-      const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
-      const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
-      const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
+    const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
+    const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
+    const menuCommands = user?.language === 'RU' ? menuCommandsRU : menuCommandsEN;
 
+    if (user.registrationStep && user.registrationStep.startsWith('editing_')) {
+      console.log(`User ${msg.from.id} in editing mode, processing in heroes handler`);
+      await heroesHandler(bot, msg, null);
+    } else if (user.registrationStep === 'completed') {
+      console.log(`User ${msg.from.id} registration completed, processing menu commands`);
       if (menuCommands.includes(msg.text)) {
         console.log(`Menu command detected in private chat: ${msg.text}`);
         if (msg.text === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
@@ -418,7 +421,7 @@ bot.on('message', async (msg) => {
         await mainMenuHandler(bot, msg);
       } else {
         console.log(`Ignoring non-menu message in private chat from registered user: ${msg.text}`);
-        return;
+        bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');
       }
     } else {
       console.log(`User ${msg.from.id} in registration process, proceeding to registration handler`);

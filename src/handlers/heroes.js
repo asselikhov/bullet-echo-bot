@@ -46,6 +46,10 @@ module.exports = async (bot, msg, query) => {
 
   console.log(`Handling callback: ${data}, message: ${messageText}`); // Дополнительный лог
 
+  const menuCommandsRU = ['ЛК', 'Рейтинг', 'Настройки', 'Герои', 'Синдикаты', 'Поиск'];
+  const menuCommandsEN = ['Profile', 'Rating', 'Settings', 'Heroes', 'Syndicates', 'Search'];
+  const menuCommands = user.language === 'RU' ? menuCommandsRU : menuCommandsEN;
+
   try {
     if (data && data.startsWith('heroes_class_')) {
       const classId = data.split('_')[2];
@@ -258,7 +262,7 @@ module.exports = async (bot, msg, query) => {
         const hero = await Hero.findOne({ userId: chatId.toString(), classId, heroId });
         if (!hero) {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Герой не найден.' : 'Hero not found.');
-          user.registrationStep = null;
+          user.registrationercusStep = null;
           await user.save();
           bot.answerCallbackQuery(query.id, { text: 'Герой не найден', show_alert: true });
           return;
@@ -268,7 +272,24 @@ module.exports = async (bot, msg, query) => {
         let newValue = parseFloat(cleanedText);
         if (isNaN(newValue)) {
           bot.sendMessage(chatId, user.language === 'RU' ? 'Введите корректное число.' : 'Please enter a valid number.');
-          bot.answerCallbackQuery(query.id, { text: 'Некорректное число', show_alert: true });
+          user.registrationStep = null; // Сбрасываем режим редактирования
+          await user.save();
+          if (menuCommands.includes(messageText)) {
+            // Обрабатываем команду меню
+            if (messageText === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
+              await mainMenuHandler(bot, msg, { data: 'menu_profile' });
+            } else if (messageText === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
+              bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
+            } else if (messageText === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
+              await settingsHandler(bot, msg, { data: 'settings_language' });
+            } else if (messageText === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
+              await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
+            } else if (messageText === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
+              bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
+            } else if (messageText === (user.language === 'RU' ? 'Поиск' : 'Search')) {
+              bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
+            }
+          }
           return;
         }
 
@@ -317,8 +338,26 @@ module.exports = async (bot, msg, query) => {
         bot.answerCallbackQuery(query.id, { text: user.language === 'RU' ? 'Ожидаю ввод...' : 'Waiting for input...' });
       }
     } else if (!data && user.registrationStep && user.registrationStep.startsWith('editing_')) {
-      // Игнорируем текстовые сообщения, связанные с редактированием параметров героя
-      return;
+      if (menuCommands.includes(messageText)) {
+        user.registrationStep = null;
+        await user.save();
+        if (messageText === (user.language === 'RU' ? 'ЛК' : 'Profile')) {
+          await mainMenuHandler(bot, msg, { data: 'menu_profile' });
+        } else if (messageText === (user.language === 'RU' ? 'Рейтинг' : 'Rating')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '📊 Рейтинг в разработке.' : '📊 Rating is under development.');
+        } else if (messageText === (user.language === 'RU' ? 'Настройки' : 'Settings')) {
+          await settingsHandler(bot, msg, { data: 'settings_language' });
+        } else if (messageText === (user.language === 'RU' ? 'Герои' : 'Heroes')) {
+          await mainMenuHandler(bot, msg, { data: 'menu_heroes' });
+        } else if (messageText === (user.language === 'RU' ? 'Синдикаты' : 'Syndicates')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '🏰 Синдикаты в разработке.' : '🏰 Syndicates are under development.');
+        } else if (messageText === (user.language === 'RU' ? 'Поиск' : 'Search')) {
+          bot.sendMessage(chatId, user.language === 'RU' ? '🔍 Поиск в разработке.' : '🔍 Search is under development.');
+        }
+      } else {
+        // Игнорируем текстовые сообщения, не являющиеся командами меню
+        return;
+      }
     } else if (!data) {
       console.log(`Unknown text message: ${messageText}`);
       bot.sendMessage(chatId, user.language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.');

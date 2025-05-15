@@ -577,10 +577,10 @@ bot.action(/.+/, async (ctx) => {
 
 // Автоматическая установка вебхука
 const setWebhook = async () => {
-  const ngrokUrl = process.env.NGROK_URL || 'https://<YOUR_NGROK_URL>';
-  const webhookUrl = `${ngrokUrl}/bot${process.env.TELEGRAM_TOKEN}`;
+  const externalUrl = process.env.RENDER_EXTERNAL_URL || 'https://bullet-echo-bot.onrender.com';
+  const webhookUrl = `${externalUrl}/bot${process.env.TELEGRAM_TOKEN}`;
   try {
-    const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/setWebhook?url=${webhookUrl}`);
+    const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
     const data = await response.json();
     console.log(`Webhook set: ${JSON.stringify(data)}`);
   } catch (error) {
@@ -590,8 +590,13 @@ const setWebhook = async () => {
 setWebhook();
 
 // Запуск сервера
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Используем порт Render по умолчанию
 app.listen(PORT, () => {
   console.log(`Webhook server is running on port ${PORT}`);
-  console.log(`Webhook set to: https://<NGROK_URL>/bot${process.env.TELEGRAM_TOKEN}`);
+  console.log(`Webhook set to: ${webhookUrl}`);
+});
+
+// Настройка обработки невалидных путей
+app.use((req, res) => {
+  res.status(404).send('Not Found');
 });

@@ -22,7 +22,8 @@ const UserSchema = new mongoose.Schema({
     type: String
   },
   syndicate: {
-    type: String
+    type: String,
+    default: null
   },
   name: {
     type: String
@@ -46,15 +47,15 @@ const UserSchema = new mongoose.Schema({
   },
   valorPath: {
     type: Number,
-    default: 0,
+    default: null,
     min: 0
   },
   registrationStep: {
     type: String,
-    default: 'language'
+    default: 'telegramUsername'
   }
 }, {
-  timestamps: true // Добавляет createdAt и updatedAt для отслеживания времени
+  timestamps: true
 });
 
 module.exports = mongoose.model('User', UserSchema);

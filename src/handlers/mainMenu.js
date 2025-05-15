@@ -1,123 +1,110 @@
 const User = require('../models/User');
+const Hero = require('../models/Hero');
+const { formatProfileText, formatHeroesText, handleError } = require('../utils/helpers');
+const { getMainReplyKeyboard, getProfileInlineKeyboard, getHeroesInlineKeyboard } = require('../utils/keyboards');
 const heroTranslations = require('../constants/heroes');
 
-module.exports = async (bot, msg, query) => {
-  const chatId = msg.chat.id;
-  const data = query ? query.data : null;
-  const user = await User.findOne({ telegramId: msg.from.id.toString() });
-
-  if (!user) {
-    bot.sendMessage(chatId, user?.language === 'RU' ? 'Пожалуйста, начните с /start.' : 'Please start with /start.');
-    return;
-  }
-
+module.exports = async (bot, ctx, { data }, user) => {
+  const userId = ctx.from.id.toString();
   const language = user.language || 'RU';
+  const isCallback = !!ctx.callbackQuery;
 
   try {
-    if (data === 'menu_profile') {
-      console.log('User data:', {
-        ...user.toObject(),
-        trophies: user.trophies,
-        valorPath: user.valorPath,
-        telegramUsername: user.telegramUsername
-      }); // Отладочный лог с telegramUsername
-      const fields = language === 'RU' ?
-          {
-            'Telegram': user.telegramUsername || `@${user.telegramId}`,
-            'Никнейм': user.nickname,
-            'ID игрока': user.userId,
-            'Трофеи': user.trophies,
-            'Путь доблести': user.valorPath,
-            'Синдикат': user.syndicate,
-            'Имя': user.name,
-            'Возраст': user.age,
-            'Пол': user.gender,
-            'Страна': user.country,
-            'Город': user.city
-          } :
-          {
-            'Telegram': user.telegramUsername || `@${user.telegramId}`,
-            'Nickname': user.nickname,
-            'User ID': user.userId,
-            'Trophies': user.trophies,
-            'Valor Path': user.valorPath,
-            'Syndicate': user.syndicate,
-            'Name': user.name,
-            'Age': user.age,
-            'Gender': user.gender,
-            'Country': user.country,
-            'City': user.city
-          };
-
-      let profileText = language === 'RU' ? '📋 Личный кабинет\n➖➖➖➖➖➖➖➖➖➖➖\n' : '📋 Profile\n━━━━━━━━━━━━━━━\n';
-      let hasFields = false;
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined && value !== null) {
-          profileText += `${key}: ${value || (language === 'RU' ? 'Не указано' : 'Not set')}\n`;
-          hasFields = true;
-        }
-      }
-
-      if (!hasFields) {
-        profileText = language === 'RU' ? '⚠️ Профиль пуст. Завершите регистрацию.' : '⚠️ Profile is empty. Complete registration.';
-      }
-
-      bot.sendMessage(chatId, profileText, {
+    if (data === 'menu_main') {
+      return {
+        text: language === 'RU' ? 'Добро пожаловать в главное меню!' : 'Welcome to the main menu!',
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
         reply_markup: {
-          inline_keyboard: [
-            [{ text: language === 'RU' ? '✏️ Редактировать' : '✏️ Edit', callback_data: 'profile_edit' }],
-          ],
-        },
-      });
-    } else if (data === 'menu_heroes') {
-      const classes = Object.keys(heroTranslations).map(classId => ({
-        id: classId,
-        name: heroTranslations[classId].classNames[language],
-      }));
-
-      bot.sendMessage(chatId, language === 'RU' ? 'Выберите класс героев:' : 'Select hero class:', {
-        reply_markup: {
-          inline_keyboard: classes.map(cls => [{ text: cls.name, callback_data: `heroes_class_${cls.id}` }]),
-        },
-      });
-    } else if (data && data.startsWith('heroes_class_')) {
-      // Перенаправляем обработку в heroes.js
-      const heroesHandler = require('./heroes');
-      await heroesHandler(bot, msg, query);
-    } else {
-      // Отображаем главное меню с полным набором кнопок
-      const menuText = language === 'RU' ? '🎮 Главное меню' : '🎮 Main Menu';
-      console.log(`Rendering full main menu for user ${user.telegramId}`); // Отладочный лог
-      const keyboard = language === 'RU' ? [
-        ['ЛК', 'Рейтинг', 'Настройки'],
-        ['Герои', 'Синдикаты', 'Поиск']
-      ] : [
-        ['Profile', 'Rating', 'Settings'],
-        ['Heroes', 'Syndicates', 'Search']
-      ];
-
-      const replyMarkup = {
-        reply_markup: {
-          keyboard: keyboard,
-          resize_keyboard: true,
-          one_time_keyboard: false
+          keyboard: getMainReplyKeyboard(language).keyboard,
+          resize_keyboard: true
         }
       };
-
-      // Если это callback-запрос, редактируем сообщение
-      if (query && query.message) {
-        bot.editMessageText(menuText, {
-          chat_id: chatId,
-          message_id: query.message.message_id,
-          reply_markup: replyMarkup.reply_markup
-        });
-      } else {
-        // Иначе отправляем новое сообщение
-        bot.sendMessage(chatId, menuText, replyMarkup);
-      }
     }
+
+    if (data === 'menu_profile') {
+      let profileText = formatProfileText(user, language);
+      if (profileText.length > 4000) {
+        profileText = profileText.slice(0, 3900) + '\n... (сокращено)';
+      }
+      const replyMarkup = {
+        inline_keyboard: [[{ text: language === 'RU' ? '✏️ Редактировать' : '✏️ Edit', callback_data: 'profile_edit' }]]
+      };
+      console.log(`Sending profile: userId=${userId}, text=${profileText.slice(0, 100)}..., replyMarkup=${JSON.stringify(replyMarkup)}`);
+
+      const response = {
+        text: profileText,
+        disable_web_page_preview: true,
+        reply_markup: replyMarkup
+      };
+
+      if (isCallback) {
+        response.method = 'editMessageText';
+        response.message_id = ctx.callbackQuery.message.message_id;
+      }
+
+      return response;
+    }
+
+    if (data === 'menu_heroes') {
+      let keyboardObj = getHeroesInlineKeyboard(language, 'menu_heroes');
+      let inlineKeyboard = keyboardObj.inline_keyboard; // Извлекаем массив inline_keyboard
+      // Фильтруем кнопку "Назад"
+      inlineKeyboard = inlineKeyboard.filter(row =>
+          !row.some(button => button.callback_data === 'menu_main')
+      );
+      console.log(`Sending heroes menu: userId=${userId}, replyMarkup=${JSON.stringify({ inline_keyboard: inlineKeyboard })}`);
+      const response = {
+        text: language === 'RU' ? 'Выберите класс героев:' : 'Select a hero class:',
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      };
+
+      if (isCallback) {
+        response.method = 'editMessageText';
+        response.message_id = ctx.callbackQuery.message.message_id;
+      }
+
+      return response;
+    }
+
+    if (data === 'menu_rating') {
+      return {
+        text: language === 'RU' ? 'Рейтинг пока недоступен.' : 'Rating is not available yet.',
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: {
+          keyboard: getMainReplyKeyboard(language).keyboard,
+          resize_keyboard: true
+        }
+      };
+    }
+
+    if (data === 'menu_syndicates') {
+      return {
+        text: language === 'RU' ? 'Синдикаты пока недоступны.' : 'Syndicates are not available yet.',
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: {
+          keyboard: getMainReplyKeyboard(language).keyboard,
+          resize_keyboard: true
+        }
+      };
+    }
+
+    console.warn(`Unknown menu data: ${data}, userId=${userId}`);
+    return {
+      text: language === 'RU' ? 'Неизвестная команда.' : 'Unknown command.',
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        keyboard: getMainReplyKeyboard(language).keyboard,
+        resize_keyboard: true
+      }
+    };
   } catch (error) {
-    console.error('Error in mainMenu handler:', error.stack);
-    bot.sendMessage(chatId, language === 'RU' ? '❌ Произошла ошибка.' : '❌ An error occurred.');
+    console.error(`Error in mainMenu handler: userId=${userId}, data=${data}`, error.stack);
+    return handleError(ctx, error, language);
   }
 };

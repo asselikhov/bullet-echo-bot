@@ -1,82 +1,48 @@
 const User = require('../models/User');
-const heroesHandler = require('./heroes');
+const { getMainReplyKeyboard } = require('../utils/keyboards');
+const { clearGlobalStates } = require('../utils/helpers');
+const registrationHandler = require('./registration');
 
-module.exports = async (bot, msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+module.exports = async (bot, ctx) => {
+  const userId = ctx.from.id.toString();
+  const messageId = ctx.message.message_id;
+  console.log(`Start handler: userId=${userId}`);
 
-  console.log(`Processing /start command for user: ${userId}, chat type: ${msg.chat.type}`);
-
-  // Проверяем, что команда вызвана в личном чате
-  if (msg.chat.type !== 'private') {
-    console.log(`Ignoring /start in non-private chat (chatId: ${chatId})`);
-    bot.sendMessage(chatId, '🇷🇺 Команда /start доступна только в личных чатах с ботом. 🇬🇧 The /start command is only available in private chats with the bot.');
-    return;
+  if (ctx.chat.type !== 'private') {
+    return {
+      text: '🇷🇺 Команда доступна только в личном чате.\n🇬🇧 Command is only available in a private chat.',
+      reply_markup: { remove_keyboard: true },
+      parse_mode: 'HTML'
+    };
   }
 
   try {
-    let user = await User.findOne({ telegramId: userId });
+    let user = await User.findOne({ telegramId: userId }).lean();
 
-    if (!user) {
-      // Новый пользователь, начинаем регистрацию
-      console.log(`Creating new user for telegramId: ${userId}`);
-      user = await User.create({
-        telegramId: userId,
-        telegramUsername: msg.from.username ? `@${msg.from.username}` : null,
-        registrationStep: 'language',
-        language: 'RU' // Значение по умолчанию
-      });
-      const welcomeMessage = '🇷🇺 Выберите язык / 🇬🇧 Choose language:';
-      bot.sendMessage(chatId, welcomeMessage, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🇷🇺 Русский (RU)', callback_data: 'language_RU' }],
-            [{ text: '🇬🇧 English (EN)', callback_data: 'language_EN' }],
-          ],
-        },
-      });
-      console.log(`Sent welcome message to chatId: ${chatId}, text: "${welcomeMessage}"`);
-    } else if (user.registrationStep && user.registrationStep.startsWith('editing_')) {
-      // Пользователь в режиме редактирования героя
-      console.log(`User ${userId} is in hero editing step: ${user.registrationStep}`);
-      await heroesHandler(bot, msg, null); // Перенаправляем в heroes.js
-    } else if (user.registrationStep !== 'completed') {
-      // Пользователь в процессе регистрации
-      console.log(`User ${userId} is in registration step: ${user.registrationStep}`);
-      bot.sendMessage(chatId, user.language === 'RU' ?
-              '🇷🇺 Пожалуйста, завершите регистрацию. Выберите язык:' :
-              '🇬🇧 Please complete registration. Choose language:',
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '🇷🇺 Русский (RU)', callback_data: 'language_RU' }],
-                [{ text: '🇬🇧 English (EN)', callback_data: 'language_EN' }],
-              ],
-            },
-          });
-      console.log(`Sent registration continuation message to chatId: ${chatId}`);
-    } else {
-      // Пользователь зарегистрирован, показываем клавиатуру
-      console.log(`User ${userId} is already registered, showing reply keyboard`);
-      const welcomeMessage = user.language === 'RU' ?
-          `🇷🇺 С возвращением, ${user.nickname || 'игрок'}!\nВыберите действие:\nДоступные команды: ЛК, Рейтинг, Настройки, Герои, Синдикаты, Поиск` :
-          `🇬🇧 Welcome back, ${user.nickname || 'player'}!\nChoose an action:\nAvailable commands: Profile, Rating, Settings, Heroes, Syndicates, Search`;
+    clearGlobalStates(userId);
 
-      bot.sendMessage(chatId, welcomeMessage, {
-        reply_markup: {
-          keyboard: [
-            [user.language === 'RU' ? 'ЛК' : 'Profile', user.language === 'RU' ? 'Рейтинг' : 'Rating', user.language === 'RU' ? 'Настройки' : 'Settings'],
-            [user.language === 'RU' ? 'Герои' : 'Heroes', user.language === 'RU' ? 'Синдикаты' : 'Syndicates', user.language === 'RU' ? 'Поиск' : 'Search'],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: false
-        },
-      });
-      console.log(`Sent welcome back message to chatId: ${chatId}, text: "${welcomeMessage}"`);
+    if (user && user.registrationStep === 'completed') {
+      console.log(`User ${userId} already registered, entering main menu`);
+      const language = user.language || 'RU';
+      const replyMarkup = {
+        keyboard: getMainReplyKeyboard(language).keyboard,
+        resize_keyboard: true
+      };
+      return {
+        text: language === 'RU' ? 'Добро пожаловать в главное меню!' : 'Welcome to the main menu!',
+        reply_markup: replyMarkup,
+        parse_mode: 'HTML'
+      };
     }
+
+    console.log(`User ${userId} not fully registered, redirecting to registration`);
+    return await registrationHandler(bot, ctx);
   } catch (error) {
-    console.error(`Error in startHandler for user ${userId}:`, error.stack);
-    bot.sendMessage(chatId, '🇷🇺 Произошла ошибка. Попробуйте позже. 🇬🇧 An error occurred. Try again later.');
-    console.log(`Sent error message to chatId: ${chatId}`);
+    console.error(`Error in start handler: userId=${userId}`, error.stack);
+    return {
+      text: '🇷🇺 Произошла ошибка. Попробуйте позже.\n🇬🇧 An error occurred. Try again later.',
+      reply_markup: { remove_keyboard: true },
+      parse_mode: 'HTML'
+    };
   }
 };

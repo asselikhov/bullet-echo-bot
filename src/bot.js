@@ -575,10 +575,12 @@ bot.action(/.+/, async (ctx) => {
   });
 });
 
+// Определение webhookUrl на верхнем уровне
+const externalUrl = process.env.RENDER_EXTERNAL_URL || 'https://bullet-echo-bot.onrender.com';
+const webhookUrl = `${externalUrl}/bot${process.env.TELEGRAM_TOKEN}`;
+
 // Автоматическая установка вебхука
 const setWebhook = async () => {
-  const externalUrl = process.env.RENDER_EXTERNAL_URL || 'https://bullet-echo-bot.onrender.com';
-  const webhookUrl = `${externalUrl}/bot${process.env.TELEGRAM_TOKEN}`;
   try {
     const response = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
     const data = await response.json();
